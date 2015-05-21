@@ -7,6 +7,8 @@ The context of this code base is described in detail in my [blog post](http://ka
 
 There is also a [project page](http://cs.stanford.edu/people/karpathy/char-rnn/) that has some pointers and datasets.
 
+This code is based on Oxford University Machine Learning class [practical 6](https://github.com/oxford-cs-ml-2015/practical6), which is in turn based on [learning to execute](https://github.com/wojciechz/learning_to_execute) code from Wojciech Zaremba.
+
 ## Requirements
 
 This code is written in LUA and requires [Torch](http://torch.ch/).
