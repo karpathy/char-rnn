@@ -243,7 +243,6 @@ for i = 1, iterations do
         checkpoint.opt = opt
         checkpoint.train_bpcs = train_bpcs
         checkpoint.val_bpc = val_bpc
-        checkpoint.val_bpc = val_bpc
         checkpoint.i = i
         checkpoint.epoch = epoch
         checkpoint.vocab = loader.vocab_mapping
