@@ -62,6 +62,15 @@ Make sure that if your checkpoint was trained with GPU it is also sampled from w
 
 Happy sampling!
 
+## Tips and Tricks
+
+If you're somewhat new to Machine Learning or Neural Networks it can take a bit of expertise to get good models. The most important quantity to keep track of is the difference between your training loss (printed during training) and the validation loss (printed once in a while when the RNN is run on the validation data (by default every 1000 iterations)). In particular:
+
+- If your training loss is much lower than validation loss then this means the network is **overfitting**. Solutions to this are to decrease your network size, or to increase dropout. For example you could try dropout of 0.5 and so on.
+- If your training/validation loss are about equal then your model is **underfitting**. Increase the size of your model (either number of layers or the raw number of neurons per layer)
+
+The winning strategy to obtaining very good models (if you have the compute time) is to always make a network as large as fits on your GPU and then try different dropout values (between 0,1). Whatever model has the best validation performance is the one you should use in the end. If your GPU is not very big you can start to sacrifice by making batch size smaller or after that by making the sequence length shorter.
+
 ## License
 
 MIT
