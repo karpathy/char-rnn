@@ -12,6 +12,7 @@ require 'torch'
 require 'nn'
 require 'nngraph'
 require 'optim'
+require 'lfs'
 
 require 'util.OneHot'
 require 'util.misc'
@@ -44,7 +45,11 @@ end
 torch.manualSeed(opt.seed)
 
 -- load the model checkpoint
+if not lfs.attributes(opt.model, 'mode') then
+    print('Error: File ' .. opt.model .. ' does not exist. Are you sure you didn\'t forget to prepend cv/ ?')
+end
 checkpoint = torch.load(opt.model)
+
 
 local vocab = checkpoint.vocab
 local ivocab = {}
