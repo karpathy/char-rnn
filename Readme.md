@@ -13,10 +13,11 @@ This code is based on Oxford University Machine Learning class [practical 6](htt
 
 This code is written in LUA and requires [Torch](http://torch.ch/).
 
-Additionally, you need to install `nngraph` using [LuaRocks](https://luarocks.org/)
+Additionally, you need to install `nngraph` and `optim` using [LuaRocks](https://luarocks.org/)
 
 ```bash
-luarocks install nngraph
+luarocks install nngraph 
+luarocks install optim
 ```
 
 ## Usage
