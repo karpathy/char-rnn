@@ -11,13 +11,13 @@ This code is based on Oxford University Machine Learning class [practical 6](htt
 
 ## Requirements
 
-This code is written in LUA and requires [Torch](http://torch.ch/).
+This code is written in Lua and requires [Torch](http://torch.ch/).
 
-Additionally, you need to install `nngraph` and `optim` using [LuaRocks](https://luarocks.org/)
+Additionally, you need to install the `nngraph` and `optim` packages using [LuaRocks](https://luarocks.org/)
 
 ```bash
-luarocks install nngraph 
-luarocks install optim
+$ luarocks install nngraph 
+$ luarocks install optim
 ```
 
 ## Usage
@@ -29,7 +29,7 @@ All input data is stored inside the `data/` directory. You'll notice that there 
 
 **Your own data**: If you'd like to use your own data create a single file `input.txt` and place it into a folder in `data/`. For example, `data/some_folder/input.txt`. The first time you run the training script it will write two more convenience files into `data/some_folder`.
 
-Note that if your data is too small (1MB is already considered very very small) the RNN won't learn very effectively. Remember that it has to learn everything completely from scratch. But if you insist on smaller datasets you might want to decrease the batch size a bit and do many more epochs (hundreds perhaps).
+Note that if your data is too small (1MB is already considered very small) the RNN won't learn very effectively. Remember that it has to learn everything completely from scratch.
 
 ### Training
 
