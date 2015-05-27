@@ -12,8 +12,7 @@ This code is based on Oxford University Machine Learning class [practical 6](htt
 ## Requirements
 
 This code is written in Lua and requires [Torch](http://torch.ch/).
-
-Additionally, you need to install the `nngraph` and `optim` packages using [LuaRocks](https://luarocks.org/)
+Additionally, you need to install the `nngraph` and `optim` packages using [LuaRocks](https://luarocks.org/) which you will be able to do after installing Torch
 
 ```bash
 $ luarocks install nngraph 
