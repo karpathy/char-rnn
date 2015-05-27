@@ -5,13 +5,15 @@
 local CharSplitLMMinibatchLoader = {}
 CharSplitLMMinibatchLoader.__index = CharSplitLMMinibatchLoader
 
-function CharSplitLMMinibatchLoader.create(data_dir, batch_size, seq_length, split_fractions)
-    -- split_fractions is e.g. {0.9, 0.05, 0.05}
 
+function CharSplitLMMinibatchLoader.create(data_dir, batch_size, seq_length, split_fractions, max_count)
+    -- split_fractions is e.g. {0.9, 0.05, 0.05}
+    count =1
+while (count < max_count):
     local self = {}
     setmetatable(self, CharSplitLMMinibatchLoader)
 
-    local input_file = path.join(data_dir, 'input.txt')
+    local input_file = path.join(data_dir, 'input' + count + '.txt')
     local vocab_file = path.join(data_dir, 'vocab.t7')
     local tensor_file = path.join(data_dir, 'data.t7')
 
@@ -120,6 +122,6 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     print('saving ' .. out_tensorfile)
     torch.save(out_tensorfile, data)
 end
-
+count = count + 1
 return CharSplitLMMinibatchLoader
 
