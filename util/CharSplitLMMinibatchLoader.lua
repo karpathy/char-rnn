@@ -95,8 +95,11 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     print('creating vocabulary mapping...')
     -- record all characters to a set
     local unordered = {}
-    for char in rawdata:gmatch'.' do
+    local len = 0
+    -- code snippets taken from http://lua-users.org/wiki/LuaUnicode
+    for char in string.gfind(rawdata, "([%z\1-\127\194-\244][\128-\191]*)") do
         if not unordered[char] then unordered[char] = true end
+        len = len + 1
     end
     -- sort into a table (i.e. keys become 1..N)
     local ordered = {}
@@ -109,9 +112,11 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     end
     -- construct a tensor with all the data
     print('putting data into tensor...')
-    local data = torch.ByteTensor(#rawdata) -- store it into 1D first, then rearrange
-    for i=1, #rawdata do
-        data[i] = vocab_mapping[rawdata:sub(i, i)] -- lua has no string indexing using []
+    local data = torch.ShortTensor(len) -- store it into 1D first, then rearrange
+    local pos = 1
+    for char in string.gfind(rawdata, "([%z\1-\127\194-\244][\128-\191]*)") do
+        data[pos] = vocab_mapping[char]
+        pos = pos + 1
     end
 
     -- save output preprocessed files
