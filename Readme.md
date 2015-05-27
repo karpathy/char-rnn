@@ -44,7 +44,9 @@ The `-data_dir` flag is most important since it specifies the dataset to use. No
 $ th train.lua -data_dir data/some_folder -rnn_size 512 -num_layers 2 -dropout 0.5
 ```
 
-While the model is training it will periodically write checkpoint files to the `cv` folder. You can use these checkpoints to generate text:
+While the model is training it will periodically write checkpoint files to the `cv` folder. The frequency with which these checkpoints are written is controlled with number of iterations, as specified with the `eval_val_every` option (e.g. if this is 1 then a checkpoint is written every iteration).
+
+We can use these checkpoints to generate text (discussed next).
 
 ### Sampling
 
