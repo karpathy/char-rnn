@@ -13,7 +13,7 @@ while (count < max_count):
     local self = {}
     setmetatable(self, CharSplitLMMinibatchLoader)
 
-    local input_file = path.join(data_dir, 'input' + count + '.txt')
+    local input_file = path.join(data_dir, 'input', count, '.txt')
     local vocab_file = path.join(data_dir, 'vocab.t7')
     local tensor_file = path.join(data_dir, 'data.t7')
 
