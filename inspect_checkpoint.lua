@@ -11,7 +11,7 @@ require 'util.misc'
 
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text('Test a simple character-level language model')
+cmd:text('Load a checkpoint and print its options and validation losses.')
 cmd:text()
 cmd:text('Options')
 cmd:argument('-model','model to load')
