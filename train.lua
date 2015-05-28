@@ -213,8 +213,8 @@ function feval(x)
 end
 
 -- start optimization here
-train_bpcs = {} -- bits per character
-val_bpcs = {}
+train_losses = {}
+val_losses = {}
 local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
 local iterations = opt.max_epochs * loader.ntrain
 local iterations_per_epoch = loader.ntrain
@@ -226,24 +226,23 @@ for i = 1, iterations do
     local _, loss = optim.rmsprop(feval, params, optim_state)
     local time = timer:time().real
 
-    local train_bpc = math.log(math.exp(loss[1]),2) -- exp to get probability, then log 2 it to get bits per character
-    train_bpcs[i] = train_bpc
+    local train_loss = loss[1] -- the loss is inside a list, pop it
+    train_losses[i] = train_loss
 
     -- every now and then or on last iteration
     if i % opt.eval_val_every == 0 or i == iterations then
-        -- evaluate bpc on validation data
+        -- evaluate loss on validation data
         local val_loss = eval_split(2) -- 2 = validation
-        val_bpc = math.log(math.exp(val_loss),2)
-        val_bpcs[i] = val_bpc
+        val_losses[i] = val_loss
 
-        local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_bpc)
+        local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.protos = protos
         checkpoint.opt = opt
-        checkpoint.train_bpcs = train_bpcs
-        checkpoint.val_bpc = val_bpc
-        checkpoint.val_bpcs = val_bpcs
+        checkpoint.train_losses = train_losses
+        checkpoint.val_loss = val_loss
+        checkpoint.val_losses = val_losses
         checkpoint.i = i
         checkpoint.epoch = epoch
         checkpoint.vocab = loader.vocab_mapping
@@ -251,7 +250,7 @@ for i = 1, iterations do
     end
 
     if i % opt.print_every == 0 then
-        print(string.format("%d/%d (epoch %.3f), train_bpc = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_bpc, grad_params:norm() / params:norm(), time))
+        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
     end
    
     if i % 10 == 0 then collectgarbage() end
