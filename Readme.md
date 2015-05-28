@@ -26,7 +26,7 @@ $ luarocks install optim
 
 All input data is stored inside the `data/` directory. You'll notice that there is an example dataset included in the repo (in folder `data/tinyshakespeare`) which consists of a subset of works of Shakespeare. I'm providing a few more datasets on the [project page](http://cs.stanford.edu/people/karpathy/char-rnn/).
 
-**Your own data**: If you'd like to use your own data create a single file `input.txt` and place it into a folder in `data/`. For example, `data/some_folder/input.txt`. The first time you run the training script it will write two more convenience files into `data/some_folder`.
+**Your own data**: If you'd like to use your own data create a single file `input.txt` and place it into a folder in `data/`. For example, `data/some_folder/input.txt`. The first time you run the training script it will write two more convenience files into `data/some_folder`. **Note**: If you change the file `input.txt` in place you currently must delete the two intermediate files manually to force the preprocessing to re-run.
 
 Note that if your data is too small (1MB is already considered very small) the RNN won't learn very effectively. Remember that it has to learn everything completely from scratch.
 
