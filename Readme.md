@@ -30,6 +30,8 @@ All input data is stored inside the `data/` directory. You'll notice that there 
 
 Note that if your data is too small (1MB is already considered very small) the RNN won't learn very effectively. Remember that it has to learn everything completely from scratch.
 
+Conversely if your data is large (more than about 2MB), feel confident to increase `rnn_size` and train a bigger model (see details of training below). It will work *significantly better*. For example with 6MB you can easily go up to `rnn_size` 300 or even more. The biggest that fits on my GPU and that I've trained with this code is `rnn_size` 700 with `num_layers` 3 (2 is default).
+
 ### Training
 
 Start training the model using `train.lua`, for example:
