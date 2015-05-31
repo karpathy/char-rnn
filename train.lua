@@ -21,7 +21,7 @@ require 'lfs'
 
 require 'util.OneHot'
 require 'util.misc'
-local CharSplitLMMinibatchLoader = require 'util.CharSplitLMMinibatchLoader'
+local CharSplitLMMinibatchLoader = require 'util.WordSplitLMMinibatchLoader'
 local model_utils = require 'util.model_utils'
 local LSTM = require 'model.LSTM'
 
