@@ -97,11 +97,11 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     local unordered = {}
     local length = 0
     for char1,char2 in rawdata:gmatch'(%a*)(.?)' do
-        if char1 ~= "" then
+        if char1 ~= nil then
             if not unordered[char1] then unordered[cha1] = true end
             length = length + 1
         end
-        if char2 ~= "" then
+        if char2 ~= nil then
             if not unordered[char2] then unordered[char2] = true end
             length = length + 1
         end
