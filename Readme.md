@@ -1,7 +1,7 @@
 
 # char-rnn
 
-This code implements **multi-layer Recurrent Neural Network** (RNN, LSTM, and GRU) for training/sampling from character-level language models. The input is a single text file and the model learns to predict the next character in the sequence. 
+This code implements **multi-layer Recurrent Neural Network** (RNN, LSTM, and GRU) for training/sampling from character-level language models. The input is a single text file and the model learns to predict the next character in the sequence.
 
 The context of this code base is described in detail in my [blog post](http://karpathy.github.io/2015/05/21/rnn-effectiveness/).
 
@@ -16,7 +16,7 @@ This code is written in Lua and requires [Torch](http://torch.ch/).
 Additionally, you need to install the `nngraph` and `optim` packages using [LuaRocks](https://luarocks.org/)
 
 ```bash
-$ luarocks install nngraph 
+$ luarocks install nngraph
 $ luarocks install optim
 ```
 

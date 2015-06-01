@@ -3,11 +3,11 @@
 
 This file trains a character-level multi-layer RNN on text data
 
-Code is based on implementation in 
+Code is based on implementation in
 https://github.com/oxford-cs-ml-2015/practical6
 but modified to have multi-layer support, GPU support, as well as
 many other common model/optimization bells and whistles.
-The practical6 code is in turn based on 
+The practical6 code is in turn based on
 https://github.com/wojciechz/learning_to_execute
 which is turn based on other stuff in Torch, etc... (long lineage)
 
@@ -21,7 +21,7 @@ require 'lfs'
 
 require 'util.OneHot'
 require 'util.misc'
-local CharSplitLMMinibatchLoader = require 'util.WordSplitLMMinibatchLoader'
+
 local model_utils = require 'util.model_utils'
 local LSTM = require 'model.LSTM'
 
@@ -35,6 +35,7 @@ cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain th
 -- model params
 cmd:option('-rnn_size', 100, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
+cmd:option('-words', false, 'whether the model operates on words (as opposed to chars)')
 cmd:option('-model', 'lstm', 'for now only lstm is supported. keep fixed')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
@@ -59,10 +60,17 @@ cmd:text()
 
 -- parse input params
 opt = cmd:parse(arg)
+
+if opt.words then
+  local SplitLMMinibatchLoader = require 'util.CharSplitLMMinibatchLoader'
+else
+  local SplitLMMinibatchLoader = require 'util.WordSplitLMMinibatchLoader'
+end
+
 torch.manualSeed(opt.seed)
 -- train / val / test split for data, in fractions
 local test_frac = math.max(0, 1 - opt.train_frac - opt.val_frac)
-local split_sizes = {opt.train_frac, opt.val_frac, test_frac} 
+local split_sizes = {opt.train_frac, opt.val_frac, test_frac}
 
 if opt.gpuid >= 0 then
     print('using CUDA on GPU ' .. opt.gpuid .. '...')
@@ -71,7 +79,7 @@ if opt.gpuid >= 0 then
     cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
 end
 -- create the data loader class
-local loader = CharSplitLMMinibatchLoader.create(opt.data_dir, opt.batch_size, opt.seq_length, split_sizes)
+local loader = SplitLMMinibatchLoader.create(opt.data_dir, opt.batch_size, opt.seq_length, split_sizes)
 local vocab_size = loader.vocab_size  -- the number of distinct characters
 print('vocab size: ' .. vocab_size)
 -- make sure output directory exists
@@ -121,7 +129,7 @@ function eval_split(split_index, max_batches)
     loader:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
     local loss = 0
     local rnn_state = {[0] = init_state}
-    
+
     for i = 1,n do -- iterate over batches in the split
         -- fetch a batch
         local x, y = loader:next_batch(split_index)
@@ -193,10 +201,10 @@ function feval(x)
         local dlst = clones.rnn[t]:backward({embeddings[t], unpack(rnn_state[t-1])}, drnn_statet_passin)
         drnn_state[t-1] = {}
         for k,v in pairs(dlst) do
-            if k == 1 then 
+            if k == 1 then
                 dembeddings[t] = v
             else
-                -- note we do k-1 because first item is dembeddings, and then follow the 
+                -- note we do k-1 because first item is dembeddings, and then follow the
                 -- derivatives of the state, starting at index 2. I know...
                 drnn_state[t-1][k-1] = v
             end
@@ -251,9 +259,13 @@ for i = 1, iterations do
     end
 
     if i % opt.print_every == 0 then
-        print(string.format("%d/%d (epoch %.3f), train_bpc = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_bpc, grad_params:norm() / params:norm(), time))
+        if op.words then
+          print(string.format("%d/%d (epoch %.3f), train_bpc = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_bpc, grad_params:norm() / params:norm(), time))
+        else
+          print(string.format("%d/%d (epoch %.3f), train_bpw = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_bpc, grad_params:norm() / params:norm(), time))
+        end
     end
-   
+
     if i % 10 == 0 then collectgarbage() end
 
     -- handle early stopping if things are going really bad
@@ -263,5 +275,3 @@ for i = 1, iterations do
         break -- halt
     end
 end
-
-
