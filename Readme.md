@@ -12,8 +12,7 @@ This code is based on Oxford University Machine Learning class [practical 6](htt
 ## Requirements
 
 This code is written in Lua and requires [Torch](http://torch.ch/).
-
-Additionally, you need to install the `nngraph` and `optim` packages using [LuaRocks](https://luarocks.org/)
+Additionally, you need to install the `nngraph` and `optim` packages using [LuaRocks](https://luarocks.org/) which you will be able to do after installing Torch
 
 ```bash
 $ luarocks install nngraph
@@ -27,9 +26,11 @@ $ luarocks install optim
 
 All input data is stored inside the `data/` directory. You'll notice that there is an example dataset included in the repo (in folder `data/tinyshakespeare`) which consists of a subset of works of Shakespeare. I'm providing a few more datasets on the [project page](http://cs.stanford.edu/people/karpathy/char-rnn/).
 
-**Your own data**: If you'd like to use your own data create a single file `input.txt` and place it into a folder in `data/`. For example, `data/some_folder/input.txt`. The first time you run the training script it will write two more convenience files into `data/some_folder`.
+**Your own data**: If you'd like to use your own data create a single file `input.txt` and place it into a folder in `data/`. For example, `data/some_folder/input.txt`. The first time you run the training script it will write two more convenience files into `data/some_folder`. **Note**: If you change the file `input.txt` in place you currently must delete the two intermediate files manually to force the preprocessing to re-run.
 
 Note that if your data is too small (1MB is already considered very small) the RNN won't learn very effectively. Remember that it has to learn everything completely from scratch.
+
+Conversely if your data is large (more than about 2MB), feel confident to increase `rnn_size` and train a bigger model (see details of training below). It will work *significantly better*. For example with 6MB you can easily go up to `rnn_size` 300 or even more. The biggest that fits on my GPU and that I've trained with this code is `rnn_size` 700 with `num_layers` 3 (2 is default).
 
 ### Training
 
@@ -45,7 +46,9 @@ The `-data_dir` flag is most important since it specifies the dataset to use. No
 $ th train.lua -data_dir data/some_folder -rnn_size 512 -num_layers 2 -dropout 0.5
 ```
 
-While the model is training it will periodically write checkpoint files to the `cv` folder. You can use these checkpoints to generate text:
+While the model is training it will periodically write checkpoint files to the `cv` folder. The frequency with which these checkpoints are written is controlled with number of iterations, as specified with the `eval_val_every` option (e.g. if this is 1 then a checkpoint is written every iteration).
+
+We can use these checkpoints to generate text (discussed next).
 
 ### Sampling
 
