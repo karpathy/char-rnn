@@ -29,14 +29,14 @@ function CharSplitLMMinibatchLoader.create(data_dir, batch_size, seq_length, spl
     local len = data:size(1)
     if len % (batch_size * seq_length) ~= 0 then
         print('cutting off end of data so that the batches/sequences divide evenly')
-        data = data:sub(1, batch_size * seq_length 
+        data = data:sub(1, batch_size * seq_length
                     * math.floor(len / (batch_size * seq_length)))
     end
 
     -- count vocab
     self.vocab_size = 0
-    for _ in pairs(self.vocab_mapping) do 
-        self.vocab_size = self.vocab_size + 1 
+    for _ in pairs(self.vocab_mapping) do
+        self.vocab_size = self.vocab_size + 1
     end
 
     -- self.batches is a table of tensors
@@ -119,14 +119,14 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     -- construct a tensor with all the data
     print('putting data into tensor...')
     local data = torch.ByteTensor(length) -- store it into 1D first, then rearrange
-    local i = 0
+    local i = 1
     for char1,char2 in rawdata:gmatch'(%a*)(.?)' do
         if char1 ~= "" then
-            data[i] = char1
+            data[i] = vocab_mapping[char1]
             i = i + 1
         end
         if char2 ~= "" then
-            data[i] = char2
+            data[i] = vocab_mapping[char2]
             i= i + 1
         end
     end
@@ -139,4 +139,3 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
 end
 
 return CharSplitLMMinibatchLoader
-
