@@ -60,11 +60,11 @@ cmd:text()
 
 -- parse input params
 opt = cmd:parse(arg)
-
+local SplitLMMinibatchLoader
 if opt.words then
-  local SplitLMMinibatchLoader = require 'util.CharSplitLMMinibatchLoader'
+  SplitLMMinibatchLoader = require 'util.WordSplitLMMinibatchLoader'
 else
-  local SplitLMMinibatchLoader = require 'util.WordSplitLMMinibatchLoader'
+  SplitLMMinibatchLoader = require 'util.CharSplitLMMinibatchLoader'
 end
 
 torch.manualSeed(opt.seed)
@@ -259,10 +259,10 @@ for i = 1, iterations do
     end
 
     if i % opt.print_every == 0 then
-        if op.words then
-          print(string.format("%d/%d (epoch %.3f), train_bpc = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_bpc, grad_params:norm() / params:norm(), time))
-        else
+        if opt.words then
           print(string.format("%d/%d (epoch %.3f), train_bpw = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_bpc, grad_params:norm() / params:norm(), time))
+        else
+          print(string.format("%d/%d (epoch %.3f), train_bpc = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_bpc, grad_params:norm() / params:norm(), time))
         end
     end
 
