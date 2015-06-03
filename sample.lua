@@ -49,68 +49,64 @@ if not lfs.attributes(opt.model, 'mode') then
     print('Error: File ' .. opt.model .. ' does not exist. Are you sure you didn\'t forget to prepend cv/ ?')
 end
 checkpoint = torch.load(opt.model)
+protos = checkpoint.protos
 
-
+-- initialize the vocabulary (and its inverted version)
 local vocab = checkpoint.vocab
 local ivocab = {}
 for c,i in pairs(vocab) do ivocab[i] = c end
 
-protos = checkpoint.protos
-local rnn_idx = #protos.softmax.modules - 1
-opt.rnn_size = protos.softmax.modules[rnn_idx].weight:size(2)
-
 -- initialize the rnn state
-local current_state, state_predict_index
+local current_state
 local model = checkpoint.opt.model
 
 print('creating an LSTM...')
-local num_layers = checkpoint.opt.num_layers or 1 -- or 1 is for backward compatibility
+local num_layers = checkpoint.opt.num_layers
 current_state = {}
 for L=1,checkpoint.opt.num_layers do
     -- c and h for all layers
-    local h_init = torch.zeros(1, opt.rnn_size)
+    local h_init = torch.zeros(1, checkpoint.opt.rnn_size)
     if opt.gpuid >= 0 then h_init = h_init:cuda() end
     table.insert(current_state, h_init:clone())
     table.insert(current_state, h_init:clone())
 end
-state_predict_index = #current_state -- last one is the top h
+local state_size = #current_state
 local seed_text = opt.primetext
-local prev_char
 
 protos.rnn:evaluate() -- put in eval mode so that dropout works properly
-
 -- do a few seeded timesteps
 print('seeding with ' .. seed_text)
 for c in seed_text:gmatch'.' do
     prev_char = torch.Tensor{vocab[c]}
     if opt.gpuid >= 0 then prev_char = prev_char:cuda() end
-    local embedding = protos.embed:forward(prev_char)
-    current_state = protos.rnn:forward{embedding, unpack(current_state)}
-    if type(current_state) ~= 'table' then current_state = {current_state} end
+    local lst = protos.rnn:forward{prev_char, unpack(current_state)}
+    -- lst is a list of [state1,state2,..stateN,output]. We want everything but last piece
+    current_state = {}
+    for i=1,state_size do table.insert(current_state, lst[i]) end
+    prediction = lst[#lst] -- last element holds the log probabilities
 end
 
 -- start sampling/argmaxing
 for i=1, opt.length do
 
-    -- softmax from previous timestep
-    local next_h = current_state[state_predict_index]
-    next_h = next_h / opt.temperature
-    local log_probs = protos.softmax:forward(next_h)
-
+    -- log probabilities from the previous timestep
     if opt.sample == 0 then
         -- use argmax
-        local _, prev_char_ = log_probs:max(2)
+        local _, prev_char_ = prediction:max(2)
         prev_char = prev_char_:resize(1)
     else
         -- use sampling
-        local probs = torch.exp(log_probs):squeeze()
+        prediction:div(opt.temperature) -- scale by temperature
+        local probs = torch.exp(prediction):squeeze()
+        probs:div(torch.sum(probs)) -- renormalize so probs sum to one
         prev_char = torch.multinomial(probs:float(), 1):resize(1):float()
     end
 
     -- forward the rnn for next character
-    local embedding = protos.embed:forward(prev_char)
-    current_state = protos.rnn:forward{embedding, unpack(current_state)}
-    if type(current_state) ~= 'table' then current_state = {current_state} end
+    local lst = protos.rnn:forward{prev_char, unpack(current_state)}
+    current_state = {}
+    for i=1,state_size do table.insert(current_state, lst[i]) end
+    prediction = lst[#lst] -- last element holds the log probabilities
 
     io.write(ivocab[prev_char[1]])
 end
