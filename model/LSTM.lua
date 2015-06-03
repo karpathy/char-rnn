@@ -1,7 +1,7 @@
 
 local LSTM = {}
-function LSTM.lstm(input_size, rnn_size, n, dropout)
-  dropout = dropout or 0 
+function LSTM.lstm(input_size, rnn_size, n, dropout, words)
+  dropout = dropout or 0
 
   -- there will be 2*n+1 inputs
   local inputs = {}
@@ -18,11 +18,17 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
     local prev_h = inputs[L*2+1]
     local prev_c = inputs[L*2]
     -- the input to this layer
-    if L == 1 then 
-      x = OneHot(input_size)(inputs[1])
-      input_size_L = input_size
-    else 
-      x = outputs[(L-1)*2] 
+    if L == 1 then
+      if not words then
+        x = OneHot(input_size)(inputs[1])
+        input_size_L = input_size
+      else
+        x = Embedding(input_size, rnn_size)(inputs[1])
+        input_size_L = rnn_size
+      end
+
+    else
+      x = outputs[(L-1)*2]
       input_size_L = rnn_size
     end
     -- evaluate the input sums at once for efficiency
@@ -47,7 +53,7 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
     local next_h = nn.CMulTable()({out_gate, nn.Tanh()(next_c)})
     -- add dropout to output, if desired
     if dropout > 0 then next_h = nn.Dropout(dropout)(next_h) end
-    
+
     table.insert(outputs, next_c)
     table.insert(outputs, next_h)
   end
@@ -61,4 +67,3 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
 end
 
 return LSTM
-

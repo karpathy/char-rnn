@@ -99,8 +99,16 @@ protos = {}
 --     embeded_size = vocab_size
 --     protos.embed = OneHot(vocab_size)
 -- end
+if not opt.words then
+    print('using one-hot for input...')
+    protos.embed = OneHot(vocab_size)
+else
+    print('using an embedding transform of size', opt.rnn_size)
+    protos.embed = Embedding(vocab_size, opt.rnn_size)
+end
 print('creating an LSTM with ' .. opt.num_layers .. ' layers')
 protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout, opt.words)
+
 -- the initial state of the cell/hidden states
 init_state = {}
 for L=1,opt.num_layers do
@@ -155,9 +163,11 @@ function eval_split(split_index, max_batches)
             clones.rnn[t]:evaluate() -- for dropout proper functioning
             local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
             rnn_state[t] = {}
+
             for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
             prediction = lst[#lst]
             loss = loss + clones.criterion[t]:forward(prediction, y[{{}, t}])
+
         end
         -- carry over lstm state
         rnn_state[0] = rnn_state[#rnn_state]
@@ -169,6 +179,7 @@ function eval_split(split_index, max_batches)
 end
 
 -- do fwd/bwd and return loss, grad_params
+
 local init_state_global = clone_list(init_state)
 function feval(x)
     if x ~= params then
