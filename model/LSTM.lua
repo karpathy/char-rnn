@@ -18,8 +18,13 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
     local prev_h = inputs[L*2+1]
     local prev_c = inputs[L*2]
     -- the input to this layer
-    if L == 1 then x = inputs[1] else x = outputs[(L-1)*2] end
-    if L == 1 then input_size_L = input_size else input_size_L = rnn_size end
+    if L == 1 then 
+      x = OneHot(input_size)(inputs[1])
+      input_size_L = input_size
+    else 
+      x = outputs[(L-1)*2] 
+      input_size_L = rnn_size
+    end
     -- evaluate the input sums at once for efficiency
     local i2h = nn.Linear(input_size_L, 4 * rnn_size)(x)
     local h2h = nn.Linear(rnn_size, 4 * rnn_size)(prev_h)
@@ -46,6 +51,11 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
     table.insert(outputs, next_c)
     table.insert(outputs, next_h)
   end
+
+  -- set up the decoder
+  local proj = nn.Linear(rnn_size, input_size)(outputs[#outputs])
+  local logsoft = nn.LogSoftMax()(proj)
+  table.insert(outputs, logsoft)
 
   return nn.gModule(inputs, outputs)
 end

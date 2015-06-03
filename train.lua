@@ -88,19 +88,19 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 
 -- define the model: prototypes for one timestep, then clone them in time
 protos = {}
-local embeded_size = 100
-local input_size, embeded_size
-if opt.words then
-    print('using an embedding transform for input...')
-    embeded_size = 100
-    protos.embed = Embedding(vocab_size, embeded_size)
-else
-    print('using one-hot for input...')
-    embeded_size = vocab_size
-    protos.embed = OneHot(vocab_size)
-end
+-- local embeded_size = 100
+-- local input_size, embeded_size
+-- if opt.words then
+--     print('using an embedding transform for input...')
+--     embeded_size = 100
+--     protos.embed = Embedding(vocab_size, embeded_size)
+-- else
+--     print('using one-hot for input...')
+--     embeded_size = vocab_size
+--     protos.embed = OneHot(vocab_size)
+-- end
 print('creating an LSTM with ' .. opt.num_layers .. ' layers')
-protos.rnn = LSTM.lstm(embeded_size, opt.rnn_size, opt.num_layers, opt.dropout)
+protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout, opt.words)
 -- the initial state of the cell/hidden states
 init_state = {}
 for L=1,opt.num_layers do
@@ -109,9 +109,7 @@ for L=1,opt.num_layers do
     table.insert(init_state, h_init:clone())
     table.insert(init_state, h_init:clone())
 end
-state_predict_index = #init_state -- index of blob to make prediction from
--- classifier on top
-protos.softmax = nn.Sequential():add(nn.Linear(opt.rnn_size, embeded_size)):add(nn.LogSoftMax())
+
 -- training criterion (negative log likelihood)
 protos.criterion = nn.ClassNLLCriterion()
 
@@ -121,8 +119,11 @@ if opt.gpuid >= 0 then
 end
 
 -- put the above things into one flattened parameters tensor
-params, grad_params = model_utils.combine_all_parameters(protos.embed, protos.rnn, protos.softmax)
-params:uniform(-0.08, 0.08)
+params, grad_params = model_utils.combine_all_parameters(protos.rnn)
+
+-- initialization
+params:uniform(-0.08, 0.08) -- small numbers uniform
+
 print('number of parameters in the model: ' .. params:nElement())
 -- make a bunch of clones after flattening, as that reallocates memory
 clones = {}
@@ -151,11 +152,11 @@ function eval_split(split_index, max_batches)
         end
         -- forward pass
         for t=1,opt.seq_length do
-            local embedding = clones.embed[t]:forward(x[{{}, t}])
             clones.rnn[t]:evaluate() -- for dropout proper functioning
-            rnn_state[t] = clones.rnn[t]:forward{embedding, unpack(rnn_state[t-1])}
-            if type(rnn_state[t]) ~= 'table' then rnn_state[t] = {rnn_state[t]} end
-            local prediction = clones.softmax[t]:forward(rnn_state[t][state_predict_index])
+            local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
+            rnn_state[t] = {}
+            for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
+            prediction = lst[#lst]
             loss = loss + clones.criterion[t]:forward(prediction, y[{{}, t}])
         end
         -- carry over lstm state
@@ -183,48 +184,34 @@ function feval(x)
         y = y:float():cuda()
     end
     ------------------- forward pass -------------------
-    local embeddings = {}            -- input embeddings
     local rnn_state = {[0] = init_state_global}
     local predictions = {}           -- softmax outputs
     local loss = 0
     for t=1,opt.seq_length do
-        embeddings[t] = clones.embed[t]:forward(x[{{}, t}])
         clones.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
-        rnn_state[t] = clones.rnn[t]:forward{embeddings[t], unpack(rnn_state[t-1])}
-        -- the following line is needed because nngraph tries to be clever
-        if type(rnn_state[t]) ~= 'table' then rnn_state[t] = {rnn_state[t]} end
-
-        predictions[t] = clones.softmax[t]:forward(rnn_state[t][state_predict_index])
-
-        -- predictions should be 200 me thinks
+        local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
+        rnn_state[t] = {}
+        for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
+        predictions[t] = lst[#lst] -- last element is the prediction
         loss = loss + clones.criterion[t]:forward(predictions[t], y[{{}, t}])
     end
     loss = loss / opt.seq_length
     ------------------ backward pass -------------------
-    local dembeddings = {}
     -- initialize gradient at time t to be zeros (there's no influence from future)
     local drnn_state = {[opt.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
     for t=opt.seq_length,1,-1 do
         -- backprop through loss, and softmax/linear
         local doutput_t = clones.criterion[t]:backward(predictions[t], y[{{}, t}])
-        drnn_state[t][state_predict_index] = clones.softmax[t]:backward(rnn_state[t][state_predict_index], doutput_t)
-        -- backprop through LSTM timestep
-        local drnn_statet_passin = drnn_state[t]
-        -- we have to be careful with nngraph again
-        if #(rnn_state[t]) == 1 then drnn_statet_passin = drnn_state[t][1] end
-        local dlst = clones.rnn[t]:backward({embeddings[t], unpack(rnn_state[t-1])}, drnn_statet_passin)
+        table.insert(drnn_state[t], doutput_t)
+        local dlst = clones.rnn[t]:backward({x[{{}, t}], unpack(rnn_state[t-1])}, drnn_state[t])
         drnn_state[t-1] = {}
         for k,v in pairs(dlst) do
-            if k == 1 then
-                dembeddings[t] = v
-            else
+            if k > 1 then -- k == 1 is gradient on x, which we dont need
                 -- note we do k-1 because first item is dembeddings, and then follow the
                 -- derivatives of the state, starting at index 2. I know...
                 drnn_state[t-1][k-1] = v
             end
         end
-        -- backprop through embeddings
-        clones.embed[t]:backward(x[{{}, t}], dembeddings[t])
     end
     ------------------------ misc ----------------------
     -- transfer final state to initial state (BPTT)
