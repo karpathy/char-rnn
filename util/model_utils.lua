@@ -120,7 +120,6 @@ function model_utils.clone_many_times(net, T)
             params = {}
         end
     end
-
     local paramsNoGrad
     if net.parametersNoGrad then
         paramsNoGrad = net:parametersNoGrad()

@@ -20,6 +20,7 @@ require 'optim'
 require 'lfs'
 
 require 'util.OneHot'
+require 'util.Embedding'
 require 'util.misc'
 
 local model_utils = require 'util.model_utils'
@@ -87,9 +88,19 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 
 -- define the model: prototypes for one timestep, then clone them in time
 protos = {}
-protos.embed = OneHot(vocab_size)
+local embeded_size = 100
+local input_size, embeded_size
+if opt.words then
+    print('using an embedding transform for input...')
+    embeded_size = 100
+    protos.embed = Embedding(vocab_size, embeded_size)
+else
+    print('using one-hot for input...')
+    embeded_size = vocab_size
+    protos.embed = OneHot(vocab_size)
+end
 print('creating an LSTM with ' .. opt.num_layers .. ' layers')
-protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+protos.rnn = LSTM.lstm(embeded_size, opt.rnn_size, opt.num_layers, opt.dropout)
 -- the initial state of the cell/hidden states
 init_state = {}
 for L=1,opt.num_layers do
@@ -100,7 +111,7 @@ for L=1,opt.num_layers do
 end
 state_predict_index = #init_state -- index of blob to make prediction from
 -- classifier on top
-protos.softmax = nn.Sequential():add(nn.Linear(opt.rnn_size, vocab_size)):add(nn.LogSoftMax())
+protos.softmax = nn.Sequential():add(nn.Linear(opt.rnn_size, embeded_size)):add(nn.LogSoftMax())
 -- training criterion (negative log likelihood)
 protos.criterion = nn.ClassNLLCriterion()
 
@@ -182,7 +193,10 @@ function feval(x)
         rnn_state[t] = clones.rnn[t]:forward{embeddings[t], unpack(rnn_state[t-1])}
         -- the following line is needed because nngraph tries to be clever
         if type(rnn_state[t]) ~= 'table' then rnn_state[t] = {rnn_state[t]} end
+
         predictions[t] = clones.softmax[t]:forward(rnn_state[t][state_predict_index])
+
+        -- predictions should be 200 me thinks
         loss = loss + clones.criterion[t]:forward(predictions[t], y[{{}, t}])
     end
     loss = loss / opt.seq_length
@@ -227,16 +241,18 @@ local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
 local iterations = opt.max_epochs * loader.ntrain
 local iterations_per_epoch = loader.ntrain
 local loss0 = nil
+
 for i = 1, iterations do
+
     local epoch = i / loader.ntrain
 
     local timer = torch.Timer()
+
     local _, loss = optim.rmsprop(feval, params, optim_state)
     local time = timer:time().real
 
     local train_loss = loss[1] -- the loss is inside a list, pop it
     train_losses[i] = train_loss
-
     -- every now and then or on last iteration
     if i % opt.eval_val_every == 0 or i == iterations then
         -- evaluate loss on validation data
