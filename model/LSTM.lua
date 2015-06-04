@@ -23,6 +23,7 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
       input_size_L = input_size
     else 
       x = outputs[(L-1)*2] 
+      if dropout > 0 then x = nn.Dropout(dropout)(x) end -- apply dropout, if any
       input_size_L = rnn_size
     end
     -- evaluate the input sums at once for efficiency
@@ -45,15 +46,15 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
       })
     -- gated cells form the output
     local next_h = nn.CMulTable()({out_gate, nn.Tanh()(next_c)})
-    -- add dropout to output, if desired
-    if dropout > 0 then next_h = nn.Dropout(dropout)(next_h) end
     
     table.insert(outputs, next_c)
     table.insert(outputs, next_h)
   end
 
   -- set up the decoder
-  local proj = nn.Linear(rnn_size, input_size)(outputs[#outputs])
+  local top_h = outputs[#outputs]
+  if dropout > 0 then top_h = nn.Dropout(dropout)(top_h) end
+  local proj = nn.Linear(rnn_size, input_size)(top_h)
   local logsoft = nn.LogSoftMax()(proj)
   table.insert(outputs, logsoft)
 
