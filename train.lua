@@ -34,16 +34,18 @@ cmd:text('Options')
 -- data
 cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain the file input.txt with input data')
 -- model params
-cmd:option('-rnn_size', 100, 'size of LSTM internal state')
+cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
 cmd:option('-words', false, 'whether the model operates on words (as opposed to chars)')
 cmd:option('-model', 'lstm', 'for now only lstm is supported. keep fixed')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
+cmd:option('-learning_rate_decay',0.97,'learning rate decay')
+cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
 cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
 cmd:option('-dropout',0,'dropout to use just before classifier. 0 = no dropout')
 cmd:option('-seq_length',50,'number of timesteps to unroll for')
-cmd:option('-batch_size',100,'number of sequences to train on in parallel')
+cmd:option('-batch_size',50,'number of sequences to train on in parallel')
 cmd:option('-max_epochs',30,'number of full passes through the training data')
 cmd:option('-grad_clip',5,'clip gradients at')
 cmd:option('-train_frac',0.95,'fraction of data that goes into train set')
@@ -251,6 +253,15 @@ for i = 1, iterations do
 
     local train_loss = loss[1] -- the loss is inside a list, pop it
     train_losses[i] = train_loss
+    -- exponential learning rate decay
+    if i % loader.ntrain == 0 and opt.learning_rate_decay < 1 then
+        if epoch >= opt.learning_rate_decay_after then
+            local decay_factor = opt.learning_rate_decay
+            optim_state.learningRate = optim_state.learningRate * decay_factor -- decay it
+            print('decayed learning rate by a factor ' .. decay_factor .. ' to ' .. optim_state.learningRate)
+        end
+    end
+
     -- every now and then or on last iteration
     if i % opt.eval_val_every == 0 or i == iterations then
         -- evaluate loss on validation data
