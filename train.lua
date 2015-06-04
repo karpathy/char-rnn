@@ -103,7 +103,7 @@ if not opt.words then
     print('using one-hot for input...')
     protos.embed = OneHot(vocab_size)
 else
-    print('using an embedding transform of size', opt.rnn_size)
+    print('using an embedding transform of size ' .. opt.rnn_size)
     protos.embed = Embedding(vocab_size, opt.rnn_size)
 end
 print('creating an LSTM with ' .. opt.num_layers .. ' layers')
