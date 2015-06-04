@@ -1,7 +1,7 @@
 
 -- adapted from https://github.com/wojciechz/learning_to_execute
 -- utilities for combining/flattening parameters in a model
--- the code in this script is more general than it needs to be, which is 
+-- the code in this script is more general than it needs to be, which is
 -- why it is kind of a large
 
 require 'torch'
@@ -120,7 +120,6 @@ function model_utils.clone_many_times(net, T)
             params = {}
         end
     end
-
     local paramsNoGrad
     if net.parametersNoGrad then
         paramsNoGrad = net:parametersNoGrad()
