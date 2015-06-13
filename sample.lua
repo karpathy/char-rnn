@@ -27,63 +27,86 @@ cmd:argument('-model','model checkpoint to use for sampling')
 -- optional parameters
 cmd:option('-seed',123,'random number generator\'s seed')
 cmd:option('-sample',1,' 0 to use max at each timestep, 1 to sample at each timestep')
-cmd:option('-primetext'," ",'used as a prompt to "seed" the state of the LSTM using a given sequence, before we sample.')
+cmd:option('-primetext',"",'used as a prompt to "seed" the state of the LSTM using a given sequence, before we sample.')
 cmd:option('-length',2000,'number of characters to sample')
 cmd:option('-temperature',1,'temperature of sampling')
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
+cmd:option('-verbose',1,'set to 0 to ONLY print the sampled text, no diagnostics')
 cmd:text()
 
 -- parse input params
 opt = cmd:parse(arg)
 
+-- gated print: simple utility function wrapping a print
+function gprint(str)
+    if opt.verbose == 1 then print(str) end
+end
+
+-- check that cunn/cutorch are installed if user wants to use the GPU
 if opt.gpuid >= 0 then
-    print('using CUDA on GPU ' .. opt.gpuid .. '...')
-    require 'cutorch'
-    require 'cunn'
-    cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
+    local ok, cunn = pcall(require, 'cunn')
+    local ok2, cutorch = pcall(require, 'cutorch')
+    if not ok then gprint('package cunn not found!') end
+    if not ok2 then gprint('package cutorch not found!') end
+    if ok and ok2 then
+        gprint('using CUDA on GPU ' .. opt.gpuid .. '...')
+        cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
+        cutorch.manualSeed(opt.seed)
+    else
+        gprint('Falling back on CPU mode')
+        opt.gpuid = -1 -- overwrite user setting
+    end
 end
 torch.manualSeed(opt.seed)
 
 -- load the model checkpoint
 if not lfs.attributes(opt.model, 'mode') then
-    print('Error: File ' .. opt.model .. ' does not exist. Are you sure you didn\'t forget to prepend cv/ ?')
+    gprint('Error: File ' .. opt.model .. ' does not exist. Are you sure you didn\'t forget to prepend cv/ ?')
 end
 checkpoint = torch.load(opt.model)
 protos = checkpoint.protos
+protos.rnn:evaluate() -- put in eval mode so that dropout works properly
 
 -- initialize the vocabulary (and its inverted version)
 local vocab = checkpoint.vocab
 local ivocab = {}
 for c,i in pairs(vocab) do ivocab[i] = c end
 
--- initialize the rnn state
+-- initialize the rnn state to all zeros
+gprint('creating an LSTM...')
 local current_state
-local model = checkpoint.opt.model
-
-print('creating an LSTM...')
 local num_layers = checkpoint.opt.num_layers
 current_state = {}
-for L=1,checkpoint.opt.num_layers do
+for L = 1,checkpoint.opt.num_layers do
     -- c and h for all layers
     local h_init = torch.zeros(1, checkpoint.opt.rnn_size)
     if opt.gpuid >= 0 then h_init = h_init:cuda() end
     table.insert(current_state, h_init:clone())
     table.insert(current_state, h_init:clone())
 end
-local state_size = #current_state
-local seed_text = opt.primetext
+state_size = #current_state
 
-protos.rnn:evaluate() -- put in eval mode so that dropout works properly
 -- do a few seeded timesteps
-print('seeding with ' .. seed_text)
-for c in seed_text:gmatch'.' do
-    prev_char = torch.Tensor{vocab[c]}
-    if opt.gpuid >= 0 then prev_char = prev_char:cuda() end
-    local lst = protos.rnn:forward{prev_char, unpack(current_state)}
-    -- lst is a list of [state1,state2,..stateN,output]. We want everything but last piece
-    current_state = {}
-    for i=1,state_size do table.insert(current_state, lst[i]) end
-    prediction = lst[#lst] -- last element holds the log probabilities
+local seed_text = opt.primetext
+if string.len(seed_text) > 0 then
+    gprint('seeding with ' .. seed_text)
+    gprint('--------------------------')
+    for c in seed_text:gmatch'.' do
+        prev_char = torch.Tensor{vocab[c]}
+        io.write(ivocab[prev_char[1]])
+        if opt.gpuid >= 0 then prev_char = prev_char:cuda() end
+        local lst = protos.rnn:forward{prev_char, unpack(current_state)}
+        -- lst is a list of [state1,state2,..stateN,output]. We want everything but last piece
+        current_state = {}
+        for i=1,state_size do table.insert(current_state, lst[i]) end
+        prediction = lst[#lst] -- last element holds the log probabilities
+    end
+else
+    -- fill with uniform probabilities over characters (? hmm)
+    gprint('missing seed text, using uniform probability over first character')
+    gprint('--------------------------')
+    prediction = torch.Tensor(1, #ivocab):fill(1)/(#ivocab)
+    if opt.gpuid >= 0 then prediction = prediction:cuda() end
 end
 
 -- start sampling/argmaxing
