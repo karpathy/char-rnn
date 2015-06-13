@@ -63,7 +63,7 @@ cmd:text()
 opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
 -- train / val / test split for data, in fractions
-local test_frac = math.max(0, 1 - opt.train_frac - opt.val_frac)
+local test_frac = math.max(0, 1 - (opt.train_frac + opt.val_frac))
 local split_sizes = {opt.train_frac, opt.val_frac, test_frac} 
 
 -- initialize cunn/cutorch for training on the GPU and fall back to CPU gracefully
