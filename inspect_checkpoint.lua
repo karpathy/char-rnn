@@ -3,8 +3,6 @@
 require 'torch'
 require 'nn'
 require 'nngraph'
-require 'cutorch'
-require 'cunn'
 
 require 'util.OneHot'
 require 'util.misc'
@@ -21,10 +19,12 @@ cmd:text()
 -- parse input params
 opt = cmd:parse(arg)
 
-print('using CUDA on GPU ' .. opt.gpuid .. '...')
-require 'cutorch'
-require 'cunn'
-cutorch.setDevice(opt.gpuid + 1)
+if opt.gpuid >= 0 then
+    print('using CUDA on GPU ' .. opt.gpuid .. '...')
+    require 'cutorch'
+    require 'cunn'
+    cutorch.setDevice(opt.gpuid + 1)
+end
 
 local model = torch.load(opt.model)
 
