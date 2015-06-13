@@ -66,12 +66,22 @@ torch.manualSeed(opt.seed)
 local test_frac = math.max(0, 1 - opt.train_frac - opt.val_frac)
 local split_sizes = {opt.train_frac, opt.val_frac, test_frac} 
 
+-- initialize cunn/cutorch for training on the GPU and fall back to CPU gracefully
 if opt.gpuid >= 0 then
-    print('using CUDA on GPU ' .. opt.gpuid .. '...')
-    require 'cutorch'
-    require 'cunn'
-    cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
+    local ok, cunn = pcall(require, 'cunn')
+    local ok2, cutorch = pcall(require, 'cutorch')
+    if not ok then print('package cunn not found!') end
+    if not ok2 then print('package cutorch not found!') end
+    if ok and ok2 then
+        print('using CUDA on GPU ' .. opt.gpuid .. '...')
+        cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
+        cutorch.manualSeed(opt.seed)
+    else
+        print('Falling back on CPU mode')
+        opt.gpuid = -1 -- overwrite user setting
+    end
 end
+
 -- create the data loader class
 local loader = CharSplitLMMinibatchLoader.create(opt.data_dir, opt.batch_size, opt.seq_length, split_sizes)
 local vocab_size = loader.vocab_size  -- the number of distinct characters
