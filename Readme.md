@@ -47,6 +47,8 @@ While the model is training it will periodically write checkpoint files to the `
 
 Another important quantities to be aware of are `batch_size` (call it B), `seq_length` (call it S), and the `train_frac` and `val_frac` settings. The batch size specifies how many streams of data are processed in parallel at one time. The sequence length specifies the length of each chunk, which is also the limit at which the gradients get clipped. For example, if `seq_length` is 20, then the gradient signal will never backpropagate more than 20 time steps, and the model might not *find* dependencies longer than this length in number of characters. At runtime your input text file has N characters, these first all get split into chunks of size BxS. These chunks then get allocated to three splits: train/val/test according to the `frac` settings. If your data is small, it's possible that with the default settings you'll only have very few chunks in total (for example 100). This is bad: In these cases you may want to decrease batch size or sequence length.
 
+You can also init parameters from a previously saved checkpoint using `init_from`.
+
 We can use these checkpoints to generate text (discussed next).
 
 ### Sampling

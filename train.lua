@@ -41,14 +41,15 @@ cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
 cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
 cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
-cmd:option('-dropout',0,'dropout to use just before classifier. 0 = no dropout')
+cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
 cmd:option('-seq_length',50,'number of timesteps to unroll for')
 cmd:option('-batch_size',50,'number of sequences to train on in parallel')
-cmd:option('-max_epochs',30,'number of full passes through the training data')
-cmd:option('-grad_clip',5,'clip gradients at')
+cmd:option('-max_epochs',50,'number of full passes through the training data')
+cmd:option('-grad_clip',5,'clip gradients at this value')
 cmd:option('-train_frac',0.95,'fraction of data that goes into train set')
 cmd:option('-val_frac',0.05,'fraction of data that goes into validation set')
-            -- note: test_frac will be computed as (1 - train_frac - val_frac)
+            -- test_frac will be computed as (1 - train_frac - val_frac)
+cmd:option('-init_from', '', 'initialize network parameters from checkpoint at this path')
 -- bookkeeping
 cmd:option('-seed',123,'torch manual random number generator seed')
 cmd:option('-print_every',1,'how many steps/minibatches between printing out the loss')
@@ -85,14 +86,37 @@ end
 -- create the data loader class
 local loader = CharSplitLMMinibatchLoader.create(opt.data_dir, opt.batch_size, opt.seq_length, split_sizes)
 local vocab_size = loader.vocab_size  -- the number of distinct characters
+local vocab = loader.vocab_mapping
 print('vocab size: ' .. vocab_size)
 -- make sure output directory exists
 if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 
 -- define the model: prototypes for one timestep, then clone them in time
-protos = {}
-print('creating an LSTM with ' .. opt.num_layers .. ' layers')
-protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+local do_random_init = true
+if string.len(opt.init_from) > 0 then
+    print('loading an LSTM from checkpoint ' .. opt.init_from)
+    local checkpoint = torch.load(opt.init_from)
+    protos = checkpoint.protos
+    -- make sure the vocabs are the same
+    local vocab_compatible = true
+    for c,i in pairs(checkpoint.vocab) do 
+        if not vocab[c] == i then 
+            vocab_compatible = false
+        end
+    end
+    assert(vocab_compatible, 'error, the character vocabulary for this dataset and the one in the saved checkpoint are not the same. This is trouble.')
+    -- overwrite model settings based on checkpoint to ensure compatibility
+    print('overwriting rnn_size=' .. checkpoint.opt.rnn_size .. ', num_layers=' .. checkpoint.opt.num_layers .. ' based on the checkpoint.')
+    opt.rnn_size = checkpoint.opt.rnn_size
+    opt.num_layers = checkpoint.opt.num_layers
+    do_random_init = false
+else
+    print('creating an LSTM with ' .. opt.num_layers .. ' layers')
+    protos = {}
+    protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+    protos.criterion = nn.ClassNLLCriterion()
+end
+
 -- the initial state of the cell/hidden states
 init_state = {}
 for L=1,opt.num_layers do
@@ -101,8 +125,6 @@ for L=1,opt.num_layers do
     table.insert(init_state, h_init:clone())
     table.insert(init_state, h_init:clone())
 end
--- training criterion (negative log likelihood)
-protos.criterion = nn.ClassNLLCriterion()
 
 -- ship the model to the GPU if desired
 if opt.gpuid >= 0 then
@@ -113,7 +135,9 @@ end
 params, grad_params = model_utils.combine_all_parameters(protos.rnn)
 
 -- initialization
+if do_random_init then
 params:uniform(-0.08, 0.08) -- small numbers uniform
+end
 
 print('number of parameters in the model: ' .. params:nElement())
 -- make a bunch of clones after flattening, as that reallocates memory
