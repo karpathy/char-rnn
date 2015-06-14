@@ -15,8 +15,25 @@ function CharSplitLMMinibatchLoader.create(data_dir, batch_size, seq_length, spl
     local vocab_file = path.join(data_dir, 'vocab.t7')
     local tensor_file = path.join(data_dir, 'data.t7')
 
-    -- construct a tensor with all the data
+    -- fetch file attributes to determine if we need to rerun preprocessing
+    local run_prepro = false
     if not (path.exists(vocab_file) or path.exists(tensor_file)) then
+        -- prepro files do not exist, generate them
+        print('vocab.t7 and data.t7 do not exist. Running preprocessing...')
+        run_prepro = true
+    else
+        -- check if the input file was modified since last time we 
+        -- ran the prepro. if so, we have to rerun the preprocessing
+        local input_attr = lfs.attributes(input_file)
+        local vocab_attr = lfs.attributes(vocab_file)
+        local tensor_attr = lfs.attributes(tensor_file)
+        if input_attr.modification > vocab_attr.modification or input_attr.modification > tensor_attr.modification then
+            print('vocab.t7 or data.t7 detected as stale. Re-running preprocessing...')
+            run_prepro = true
+        end
+    end
+    if run_prepro then
+        -- construct a tensor with all the data, and vocab file
         print('one-time setup: preprocessing input text file ' .. input_file .. '...')
         CharSplitLMMinibatchLoader.text_to_tensor(input_file, vocab_file, tensor_file)
     end
