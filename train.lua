@@ -71,7 +71,7 @@ local split_sizes = {opt.train_frac, opt.val_frac, test_frac}
 if opt.gpuid >= 0 then
     local ok, cunn = pcall(require, 'cunn')
     local ok2, cutorch = pcall(require, 'cutorch')
-    if not ok then print('package cunn not found!) end
+    if not ok then print('package cunn not found!') end
     if not ok2 then print('package cutorch not found!') end
     if ok and ok2 then
         print('using CUDA on GPU ' .. opt.gpuid .. '...')
