@@ -17,6 +17,13 @@ $ luarocks install nngraph
 $ luarocks install optim
 ```
 
+If you'd like to use GPU computing, you'll first need to install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit), then the `cutorch` and `cunn` packages:
+
+```bash
+$ luarocks install cutorch
+$ luarocks install optim
+```
+
 ## Usage
 
 ### Data

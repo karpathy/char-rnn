@@ -78,6 +78,8 @@ if opt.gpuid >= 0 then
         cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
         cutorch.manualSeed(opt.seed)
     else
+        print('If cutorch and cunn are installed, your CUDA toolkit may be improperly configured.')
+        print('Check your CUDA toolkit installation, rebuild cutorch and cunn, and try again.')
         print('Falling back on CPU mode')
         opt.gpuid = -1 -- overwrite user setting
     end
