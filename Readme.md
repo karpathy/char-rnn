@@ -21,7 +21,7 @@ If you'd like to use GPU computing, you'll first need to install the [CUDA Toolk
 
 ```bash
 $ luarocks install cutorch
-$ luarocks install optim
+$ luarocks install cunn
 ```
 
 ## Usage
