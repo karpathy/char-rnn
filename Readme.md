@@ -17,11 +17,18 @@ $ luarocks install nngraph
 $ luarocks install optim
 ```
 
-If you'd like to use GPU computing, you'll first need to install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit), then the `cutorch` and `cunn` packages:
+If you'd like to use CUDA GPU computing, you'll first need to install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit), then the `cutorch` and `cunn` packages:
 
 ```bash
 $ luarocks install cutorch
 $ luarocks install cunn
+```
+
+If you'd like to use OpenCL GPU computing, you'll first need to install the `cltorch` and `clnn` packages, and then use the option `-opencl 1` during training:
+
+```bash
+$ luarocks install cltorch
+$ luarocks install clnn
 ```
 
 ## Usage
