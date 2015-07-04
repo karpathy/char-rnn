@@ -323,7 +323,7 @@ for i = 1, iterations do
 
     -- handle early stopping if things are going really bad
     if loss0 == nil then loss0 = loss[1] end
-    if loss[1] > loss0 * 3 then
+    if loss[1] > loss0 * 3 or loss0 ~= loss0 then
         print('loss is exploding, aborting.')
         break -- halt
     end
