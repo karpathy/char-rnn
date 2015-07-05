@@ -24,7 +24,7 @@ $ luarocks install cutorch
 $ luarocks install cunn
 ```
 
-If you'd like to use OpenCL GPU computing, you'll first need to install the `cltorch` and `clnn` packages, and then use the option `-opencl 1` during training:
+If you'd like to use OpenCL GPU computing, you'll first need to install the `cltorch` and `clnn` packages, and then use the option `-opencl 1` during training ([cltorch issues](https://github.com/hughperkins/cltorch/issues)):
 
 ```bash
 $ luarocks install cltorch
