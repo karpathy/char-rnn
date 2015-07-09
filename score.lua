@@ -104,5 +104,5 @@ end
 
 if not file_exists(opt.input) then return {} end
 for line in io.lines(opt.input) do
-    print(score_string(line, vocab))
+    io.write(score_string(line, vocab) .. '\n')
 end
