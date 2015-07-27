@@ -41,14 +41,15 @@ cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
 cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
 cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
-cmd:option('-dropout',0,'dropout to use just before classifier. 0 = no dropout')
+cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
 cmd:option('-seq_length',50,'number of timesteps to unroll for')
 cmd:option('-batch_size',50,'number of sequences to train on in parallel')
-cmd:option('-max_epochs',30,'number of full passes through the training data')
-cmd:option('-grad_clip',5,'clip gradients at')
+cmd:option('-max_epochs',50,'number of full passes through the training data')
+cmd:option('-grad_clip',5,'clip gradients at this value')
 cmd:option('-train_frac',0.95,'fraction of data that goes into train set')
 cmd:option('-val_frac',0.05,'fraction of data that goes into validation set')
-            -- note: test_frac will be computed as (1 - train_frac - val_frac)
+            -- test_frac will be computed as (1 - train_frac - val_frac)
+cmd:option('-init_from', '', 'initialize network parameters from checkpoint at this path')
 -- bookkeeping
 cmd:option('-seed',123,'torch manual random number generator seed')
 cmd:option('-print_every',1,'how many steps/minibatches between printing out the loss')
@@ -57,53 +58,111 @@ cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get writ
 cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
 -- GPU/CPU
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
+cmd:option('-opencl',0,'use OpenCL (instead of CUDA)')
 cmd:text()
 
 -- parse input params
 opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
 -- train / val / test split for data, in fractions
-local test_frac = math.max(0, 1 - opt.train_frac - opt.val_frac)
+local test_frac = math.max(0, 1 - (opt.train_frac + opt.val_frac))
 local split_sizes = {opt.train_frac, opt.val_frac, test_frac} 
 
-if opt.gpuid >= 0 then
-    print('using CUDA on GPU ' .. opt.gpuid .. '...')
-    require 'cutorch'
-    require 'cunn'
-    cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
+-- initialize cunn/cutorch for training on the GPU and fall back to CPU gracefully
+if opt.gpuid >= 0 and opt.opencl == 0 then
+    local ok, cunn = pcall(require, 'cunn')
+    local ok2, cutorch = pcall(require, 'cutorch')
+    if not ok then print('package cunn not found!') end
+    if not ok2 then print('package cutorch not found!') end
+    if ok and ok2 then
+        print('using CUDA on GPU ' .. opt.gpuid .. '...')
+        cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
+        cutorch.manualSeed(opt.seed)
+    else
+        print('If cutorch and cunn are installed, your CUDA toolkit may be improperly configured.')
+        print('Check your CUDA toolkit installation, rebuild cutorch and cunn, and try again.')
+        print('Falling back on CPU mode')
+        opt.gpuid = -1 -- overwrite user setting
+    end
 end
+
+-- initialize clnn/cltorch for training on the GPU and fall back to CPU gracefully
+if opt.gpuid >= 0 and opt.opencl == 1 then
+    local ok, cunn = pcall(require, 'clnn')
+    local ok2, cutorch = pcall(require, 'cltorch')
+    if not ok then print('package clnn not found!') end
+    if not ok2 then print('package cltorch not found!') end
+    if ok and ok2 then
+        print('using OpenCL on GPU ' .. opt.gpuid .. '...')
+        cltorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
+        torch.manualSeed(opt.seed)
+    else
+        print('If cltorch and clnn are installed, your OpenCL driver may be improperly configured.')
+        print('Check your OpenCL driver installation, check output of clinfo command, and try again.')
+        print('Falling back on CPU mode')
+        opt.gpuid = -1 -- overwrite user setting
+    end
+end
+
 -- create the data loader class
 local loader = CharSplitLMMinibatchLoader.create(opt.data_dir, opt.batch_size, opt.seq_length, split_sizes)
 local vocab_size = loader.vocab_size  -- the number of distinct characters
+local vocab = loader.vocab_mapping
 print('vocab size: ' .. vocab_size)
 -- make sure output directory exists
 if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 
 -- define the model: prototypes for one timestep, then clone them in time
-protos = {}
-print('creating an LSTM with ' .. opt.num_layers .. ' layers')
-protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+local do_random_init = true
+if string.len(opt.init_from) > 0 then
+    print('loading an LSTM from checkpoint ' .. opt.init_from)
+    local checkpoint = torch.load(opt.init_from)
+    protos = checkpoint.protos
+    -- make sure the vocabs are the same
+    local vocab_compatible = true
+    for c,i in pairs(checkpoint.vocab) do 
+        if not vocab[c] == i then 
+            vocab_compatible = false
+        end
+    end
+    assert(vocab_compatible, 'error, the character vocabulary for this dataset and the one in the saved checkpoint are not the same. This is trouble.')
+    -- overwrite model settings based on checkpoint to ensure compatibility
+    print('overwriting rnn_size=' .. checkpoint.opt.rnn_size .. ', num_layers=' .. checkpoint.opt.num_layers .. ' based on the checkpoint.')
+    opt.rnn_size = checkpoint.opt.rnn_size
+    opt.num_layers = checkpoint.opt.num_layers
+    do_random_init = false
+else
+    print('creating an LSTM with ' .. opt.num_layers .. ' layers')
+    protos = {}
+    protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+    protos.criterion = nn.ClassNLLCriterion()
+end
+
 -- the initial state of the cell/hidden states
 init_state = {}
 for L=1,opt.num_layers do
     local h_init = torch.zeros(opt.batch_size, opt.rnn_size)
-    if opt.gpuid >=0 then h_init = h_init:cuda() end
+    if opt.gpuid >=0 and opt.opencl == 0 then h_init = h_init:cuda() end
+    if opt.gpuid >=0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(init_state, h_init:clone())
     table.insert(init_state, h_init:clone())
 end
--- training criterion (negative log likelihood)
-protos.criterion = nn.ClassNLLCriterion()
 
 -- ship the model to the GPU if desired
-if opt.gpuid >= 0 then
+if opt.gpuid >= 0 and opt.opencl == 0 then
     for k,v in pairs(protos) do v:cuda() end
+end
+if opt.gpuid >= 0 and opt.opencl == 1 then
+    for k,v in pairs(protos) do v:cl() end
 end
 
 -- put the above things into one flattened parameters tensor
 params, grad_params = model_utils.combine_all_parameters(protos.rnn)
 
 -- initialization
+if do_random_init then
 params:uniform(-0.08, 0.08) -- small numbers uniform
+end
 
 print('number of parameters in the model: ' .. params:nElement())
 -- make a bunch of clones after flattening, as that reallocates memory
@@ -126,10 +185,14 @@ function eval_split(split_index, max_batches)
     for i = 1,n do -- iterate over batches in the split
         -- fetch a batch
         local x, y = loader:next_batch(split_index)
-        if opt.gpuid >= 0 then -- ship the input arrays to GPU
+        if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
             -- have to convert to float because integers can't be cuda()'d
             x = x:float():cuda()
             y = y:float():cuda()
+        end
+        if opt.gpuid >= 0 and opt.opencl == 1 then -- ship the input arrays to GPU
+            x = x:cl()
+            y = y:cl()
         end
         -- forward pass
         for t=1,opt.seq_length do
@@ -159,10 +222,14 @@ function feval(x)
 
     ------------------ get minibatch -------------------
     local x, y = loader:next_batch(1)
-    if opt.gpuid >= 0 then -- ship the input arrays to GPU
+    if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
         -- have to convert to float because integers can't be cuda()'d
         x = x:float():cuda()
         y = y:float():cuda()
+    end
+    if opt.gpuid >= 0 and opt.opencl == 1 then -- ship the input arrays to GPU
+        x = x:cl()
+        y = y:cl()
     end
     ------------------- forward pass -------------------
     local rnn_state = {[0] = init_state_global}
@@ -255,6 +322,10 @@ for i = 1, iterations do
     if i % 10 == 0 then collectgarbage() end
 
     -- handle early stopping if things are going really bad
+    if loss[1] ~= loss[1] then
+        print('loss is NaN.  This usually indicates a bug.  Please check the issues page for existing issues, or create a new issue, if none exist.  Ideally, please state: your operating system, 32-bit/64-bit, your blas version, cpu/cuda/cl?')
+        break -- halt
+    end
     if loss0 == nil then loss0 = loss[1] end
     if loss[1] > loss0 * 3 then
         print('loss is exploding, aborting.')
