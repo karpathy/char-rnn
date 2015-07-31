@@ -91,7 +91,7 @@ local ivocab = {}
 for c,i in pairs(vocab) do ivocab[i] = c end
 
 -- initialize the rnn state to all zeros
-gprint('creating an LSTM...')
+gprint('creating an ' .. checkpoint.opt.model .. '...')
 local current_state
 local num_layers = checkpoint.opt.num_layers
 current_state = {}
@@ -101,7 +101,9 @@ for L = 1,checkpoint.opt.num_layers do
     if opt.gpuid >= 0 and opt.opencl == 0 then h_init = h_init:cuda() end
     if opt.gpuid >= 0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(current_state, h_init:clone())
-    table.insert(current_state, h_init:clone())
+    if checkpoint.opt.model == 'lstm' then
+        table.insert(current_state, h_init:clone())
+    end
 end
 state_size = #current_state
 
