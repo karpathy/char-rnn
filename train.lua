@@ -24,6 +24,8 @@ require 'util.misc'
 local CharSplitLMMinibatchLoader = require 'util.CharSplitLMMinibatchLoader'
 local model_utils = require 'util.model_utils'
 local LSTM = require 'model.LSTM'
+local GRU = require 'model.GRU'
+local RNN = require 'model.RNN'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -35,7 +37,7 @@ cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain th
 -- model params
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
-cmd:option('-model', 'lstm', 'for now only lstm is supported. keep fixed')
+cmd:option('-model', 'lstm', 'lstm,gru ot rnn')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
@@ -132,9 +134,15 @@ if string.len(opt.init_from) > 0 then
     opt.num_layers = checkpoint.opt.num_layers
     do_random_init = false
 else
-    print('creating an LSTM with ' .. opt.num_layers .. ' layers')
+    print('creating an ' .. opt.model .. ' with ' .. opt.num_layers .. ' layers')
     protos = {}
-    protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+    if opt.model == 'lstm' then
+        protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+    elseif opt.model == 'gru' then
+        protos.rnn = GRU.gru(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+    elseif opt.model == 'rnn' then
+        protos.rnn = RNN.rnn(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+    end
     protos.criterion = nn.ClassNLLCriterion()
 end
 
@@ -145,7 +153,9 @@ for L=1,opt.num_layers do
     if opt.gpuid >=0 and opt.opencl == 0 then h_init = h_init:cuda() end
     if opt.gpuid >=0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(init_state, h_init:clone())
-    table.insert(init_state, h_init:clone())
+    if opt.model == 'lstm' then
+        table.insert(init_state, h_init:clone())
+    end
 end
 
 -- ship the model to the GPU if desired
