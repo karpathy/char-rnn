@@ -93,7 +93,6 @@ for c,i in pairs(vocab) do ivocab[i] = c end
 -- initialize the rnn state to all zeros
 gprint('creating an ' .. checkpoint.opt.model .. '...')
 local current_state
-local num_layers = checkpoint.opt.num_layers
 current_state = {}
 for L = 1,checkpoint.opt.num_layers do
     -- c and h for all layers
