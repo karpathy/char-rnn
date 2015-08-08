@@ -64,7 +64,7 @@ protos = checkpoint.protos
 -- convert the networks to be CPU models
 for k,v in pairs(protos) do
 	print('converting ' .. k .. ' to CPU')
-	protos[k]:float()
+	protos[k]:double()
 end
 
 local savefile = opt.model .. '_cpu.t7' -- append "cpu.t7" to filename

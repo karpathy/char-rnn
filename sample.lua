@@ -51,6 +51,7 @@ if opt.gpuid >= 0 and opt.opencl == 0 then
     if not ok2 then gprint('package cutorch not found!') end
     if ok and ok2 then
         gprint('using CUDA on GPU ' .. opt.gpuid .. '...')
+        gprint('Make sure that your saved checkpoint was also trained with GPU. If it was trained with CPU use -gpuid -1 for sampling as well')
         cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
         cutorch.manualSeed(opt.seed)
     else
@@ -66,7 +67,8 @@ if opt.gpuid >= 0 and opt.opencl == 1 then
     if not ok then print('package clnn not found!') end
     if not ok2 then print('package cltorch not found!') end
     if ok and ok2 then
-        print('using OpenCL on GPU ' .. opt.gpuid .. '...')
+        gprint('using OpenCL on GPU ' .. opt.gpuid .. '...')
+        gprint('Make sure that your saved checkpoint was also trained with GPU. If it was trained with CPU use -gpuid -1 for sampling as well')
         cltorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
         torch.manualSeed(opt.seed)
     else
@@ -96,7 +98,7 @@ local current_state
 current_state = {}
 for L = 1,checkpoint.opt.num_layers do
     -- c and h for all layers
-    local h_init = torch.zeros(1, checkpoint.opt.rnn_size):float()
+    local h_init = torch.zeros(1, checkpoint.opt.rnn_size):double()
     if opt.gpuid >= 0 and opt.opencl == 0 then h_init = h_init:cuda() end
     if opt.gpuid >= 0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(current_state, h_init:clone())
