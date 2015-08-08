@@ -1,1 +1,8 @@
 *.t7
+*.svg
+*.dot
+*.png
+
+# temp files
+_*
+
