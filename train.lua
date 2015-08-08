@@ -108,6 +108,11 @@ end
 local loader = CharSplitLMMinibatchLoader.create(opt.data_dir, opt.batch_size, opt.seq_length, split_sizes)
 local vocab_size = loader.vocab_size  -- the number of distinct characters
 local vocab = loader.vocab_mapping
+local vocab_inv = {}
+for k, v in pairs(loader.vocab_mapping) do
+--  print('vocab pair', k, v)
+  vocab_inv[v] = k
+end
 print('vocab size: ' .. vocab_size)
 -- make sure output directory exists
 if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
@@ -212,6 +217,24 @@ function eval_split(split_index, max_batches)
     return loss
 end
 
+function sampleToString(sample)
+  local sample_copy = sample:clone():int()
+  str = ''
+  if sample_copy:size():size() == 2 then
+    for j=1, sample_copy:size()[1] do
+      for i=1, sample_copy:size()[2] do
+        str = str .. vocab_inv[sample_copy[j][i]]
+      end
+      str = str .. '|'
+    end
+  elseif sample_copy:size():size() == 1 then
+    for i=1, sample_copy:size()[1] do
+      str = str .. vocab_inv[sample_copy[i]]
+    end
+  end
+  return str
+end
+
 -- do fwd/bwd and return loss, grad_params
 local init_state_global = clone_list(init_state)
 function feval(x)
@@ -222,6 +245,7 @@ function feval(x)
 
     ------------------ get minibatch -------------------
     local x, y = loader:next_batch(1)
+    print('x', x:size(), sampleToString(x), 'y', sampleToString(y))
     if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
         -- have to convert to float because integers can't be cuda()'d
         x = x:float():cuda()
@@ -237,7 +261,9 @@ function feval(x)
     local loss = 0
     for t=1,opt.seq_length do
         clones.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
-        local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
+        local thisinput = {x[{{}, t}], unpack(rnn_state[t-1])}
+        print('t=' .. t .. ' thisinput[1]', sampleToString(thisinput[1]))
+        local lst = clones.rnn[t]:forward(thisinput)
         rnn_state[t] = {}
         for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
         predictions[t] = lst[#lst] -- last element is the prediction
@@ -278,6 +304,9 @@ local iterations_per_epoch = loader.ntrain
 local loss0 = nil
 for i = 1, iterations do
     local epoch = i / loader.ntrain
+    if epoch > 1 then
+      os.exit(0)
+    end
 
     local timer = torch.Timer()
     local _, loss = optim.rmsprop(feval, params, optim_state)
@@ -331,6 +360,7 @@ for i = 1, iterations do
         print('loss is exploding, aborting.')
         break -- halt
     end
+
 end
 
 
