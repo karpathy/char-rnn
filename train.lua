@@ -261,8 +261,9 @@ function feval(x)
     local loss = 0
     for t=1,opt.seq_length do
         -- for each char in this batch, see if is newline, if it is then reset its state
+        local x_clone = x:int()
         for b=1,opt.batch_size do
-          if vocab_inv[x[b][t]] == '\n' then
+          if vocab_inv[x_clone[b][t]] == '\n' then
             print('newline detected => resetting state, for batch_pos', b)
             for l=0,opt.num_layers-1 do
               for g=1,4 do
