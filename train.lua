@@ -245,7 +245,7 @@ function feval(x)
 
     ------------------ get minibatch -------------------
     local x, y = loader:next_batch(1)
-    print('x', x:size(), sampleToString(x), 'y', sampleToString(y))
+--    print('x', x:size(), sampleToString(x), 'y', sampleToString(y))
     if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
         -- have to convert to float because integers can't be cuda()'d
         x = x:float():cuda()
@@ -260,9 +260,22 @@ function feval(x)
     local predictions = {}           -- softmax outputs
     local loss = 0
     for t=1,opt.seq_length do
+        -- for each char in this batch, see if is newline, if it is then reset its state
+        for b=1,opt.batch_size do
+          if vocab_inv[x[b][t]] == '\n' then
+            print('newline detected => resetting state, for batch_pos', b)
+            for l=0,opt.num_layers-1 do
+              for g=1,4 do
+                local gstate = rnn_state[l][g]
+                local narrowed_state = gstate:narrow(1, b, 1)
+                narrowed_state:zero()
+              end
+            end
+          end
+        end
         clones.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
         local thisinput = {x[{{}, t}], unpack(rnn_state[t-1])}
-        print('t=' .. t .. ' thisinput[1]', sampleToString(thisinput[1]))
+--        print('t=' .. t .. ' thisinput[1]', sampleToString(thisinput[1]))
         local lst = clones.rnn[t]:forward(thisinput)
         rnn_state[t] = {}
         for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
@@ -304,9 +317,6 @@ local iterations_per_epoch = loader.ntrain
 local loss0 = nil
 for i = 1, iterations do
     local epoch = i / loader.ntrain
-    if epoch > 1 then
-      os.exit(0)
-    end
 
     local timer = torch.Timer()
     local _, loss = optim.rmsprop(feval, params, optim_state)
