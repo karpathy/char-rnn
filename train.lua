@@ -259,12 +259,15 @@ function feval(x)
     local rnn_state = {[0] = init_state_global}
     local predictions = {}           -- softmax outputs
     local loss = 0
+    local resetBPerT = {} -- to save some time on way backwards
     for t=1,opt.seq_length do
         -- for each char in this batch, see if is newline, if it is then reset its state
         local x_clone = x:int()
+        resetBPerT[t] = {}
         for b=1,opt.batch_size do
           if vocab_inv[x_clone[b][t]] == '\n' then
-            print('newline detected => resetting state, for batch_pos', b)
+            print('newline detected => resetting state, t=' .. t .. ' batch_pos', b)
+            table.insert(resetBPerT[t], b)
             for l=0,opt.num_layers-1 do
               for g=1,4 do
                 local gstate = rnn_state[l][g]
@@ -291,6 +294,16 @@ function feval(x)
         -- backprop through loss, and softmax/linear
         local doutput_t = clones.criterion[t]:backward(predictions[t], y[{{}, t}])
         table.insert(drnn_state[t], doutput_t)
+        -- check for any newlines, reset entire state for that b value, if found
+        for _, b in ipairs(resetBPerT[t]) do
+          print('backprop, found newline, resetting state for t=' .. t .. ' b=' .. b)
+          local tstate = drnn_state[t]
+          for g=1,5 do
+            local gstate = tstate[g]
+            local narrowed_state = gstate:narrow(1, b, 1)
+            narrowed_state:zero()
+          end
+        end
         local dlst = clones.rnn[t]:backward({x[{{}, t}], unpack(rnn_state[t-1])}, drnn_state[t])
         drnn_state[t-1] = {}
         for k,v in pairs(dlst) do
