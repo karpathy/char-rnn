@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/less.js/2.5.1/less.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js"></script>
+<script type="text/javascript" src="web_utils/circle-progress.js"></script>
+<link rel="stylesheet" href="web_utils/style.css">
+
+</head>
+<body>
+<div class="center">
+<div class="page-header">
+  <h1>Char-RNN Training <small>Monitoring Page</small></h1>
+</div>
+<div class="row">
+  <div class="col-md-4">
+  <h4>Training Loss </h4><canvas id="myChart" width="400" height="400"></canvas>
+  <h5>Epoch</h5>
+  </div>
+  <div class="col-md-4">
+
+<h4>Progress of current epoch</h4>
+ <div id="circle"></div>
+ <h4>Current epoch: <div class="current_epoch">0</div></h4>
+ <h4>Current iteration: <div class="current_iter">0</div></h4>
+</div>
+
+  <div class="col-md-4">
+  	<h3>Time per batch: <div class="time_per_batch"> 0s </div></h3>
+  </div>
+  </div>
+</div>
+</div>
+<script>
+var ctx = document.getElementById("myChart").getContext("2d");
+var data = {
+    labels: ["0.0", "1", "2", "3", "4", "5", "6"],
+    datasets: [
+        {
+            label: "My First dataset",
+            fillColor: "rgba(220,220,220,0.2)",
+            strokeColor: "#00B2EE",
+            pointColor: "#00688B",
+            pointStrokeColor: "#fff",
+            pointHighlightFill: "#fff",
+            pointHighlightStroke: "rgba(220,220,220,1)",
+            data: [3.64, 2.45, 2.01, 1.67, 1.32, 1.21, 1.03]
+        }
+    ]
+};
+var myLineChart = new Chart(ctx).Line(data);
+ $('#circle').circleProgress({
+        value: 0.75,
+        size: 280,
+        fill: {
+            gradient: ["red", "orange"]
+        }
+    });
+</script>
+</body>
+
+</html>
