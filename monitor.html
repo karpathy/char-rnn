@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js"></script>
 <script type="text/javascript" src="web_utils/circle-progress.js"></script>
 <link rel="stylesheet" href="web_utils/style.css">
-
+<title>Char-RNN Monitoring Page</title>
 </head>
 <body>
 <div class="center">
@@ -35,9 +35,31 @@
 </div>
 </div>
 <script>
+$.ajaxSetup({ cache: false });
+var labelData = [];
+var trainingValueData = [];
+Chart.defaults.global.animation = false;
+Chart.defaults.global.showTooltips = false;
+Chart.defaults.global.scaleShowLabels = true;
+
+function initGraph(){
+   $.get('web_utils/train.txt', function(data) {
+     labelData.length = 0;
+   trainingValueData.length = 0;
+      var lines = data.split("\n");
+        for (var i = 0, len = lines.length; i < len; i++) {
+          if (i == 0){
+            continue;
+          }
+          var value = lines[i].split(":")[1];
+          labelData.push("");
+          trainingValueData.push(value);
+        }
+  }, 'text'); 
+}
 var ctx = document.getElementById("myChart").getContext("2d");
 var data = {
-    labels: ["0.0", "1", "2", "3", "4", "5", "6"],
+    labels: labelData,
     datasets: [
         {
             label: "My First dataset",
@@ -47,18 +69,67 @@ var data = {
             pointStrokeColor: "#fff",
             pointHighlightFill: "#fff",
             pointHighlightStroke: "rgba(220,220,220,1)",
-            data: [3.64, 2.45, 2.01, 1.67, 1.32, 1.21, 1.03]
+            data: trainingValueData
         }
     ]
-};
-var myLineChart = new Chart(ctx).Line(data);
+ };
+var myLineChart = new Chart(ctx).Line(data, {
+    pointDot: false
+});
+function graph(){
+  initGraph();
+  data = {
+    labels: labelData,
+    datasets: [
+        {
+            label: "My First dataset",
+            fillColor: "rgba(220,220,220,0.2)",
+            strokeColor: "#00B2EE",
+            pointColor: "#00688B",
+            pointStrokeColor: "#fff",
+            pointHighlightFill: "#fff",
+            pointHighlightStroke: "rgba(220,220,220,1)",
+            data: trainingValueData
+        }
+    ]
+ };
+ 
+  myLineChart = new Chart(ctx).Line(data, {
+    pointDot: false
+});
+  //myLineChart.update();
+}
  $('#circle').circleProgress({
         value: 0.75,
         size: 280,
         fill: {
-            gradient: ["red", "orange"]
+            gradient: ["#00688B", "#00B2EE"]
         }
     });
+function update() {
+   $.get('web_utils/data.txt', function(data) {
+      var lines = data.split("\n");
+        for (var i = 0, len = lines.length; i < len; i++) {
+            if (i == 1){
+              $('.current_epoch').text(lines[i]); // Update current epoch
+              var decimal = lines[i].split('.')[1]
+              $('#circle').circleProgress('value', decimal / 1000);
+            }
+            else if (i == 2){
+              $('.current_iter').text(lines[i]); // Update current iteration
+            }
+            else if (i == 3){
+              $('.time_per_batch').text(lines[i]); // Update time per batch
+            }
+        }
+}, 'text');
+}
+update();
+initGraph();
+window.setInterval(function(){
+ update();
+ graph();
+}, 3000);
 </script>
 </body>
 

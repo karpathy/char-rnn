@@ -38,6 +38,8 @@ cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain th
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
 cmd:option('-model', 'lstm', 'lstm,gru or rnn')
+-- Training visualization
+cmd:option('-visualize', false, 'Whether to enable visualization of model training in browser')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
@@ -66,6 +68,8 @@ cmd:text()
 -- parse input params
 opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
+
+
 -- train / val / test split for data, in fractions
 local test_frac = math.max(0, 1 - (opt.train_frac + opt.val_frac))
 local split_sizes = {opt.train_frac, opt.val_frac, test_frac} 
@@ -327,6 +331,20 @@ for i = 1, iterations do
 
     if i % opt.print_every == 0 then
         print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
+        if opt.visualize == true then
+            -- Write current data to files
+            data = io.open ('web_utils/data.txt', 'w')
+            train = io.open ('web_utils/train.txt', 'a')
+
+            data:write ("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.", "\n")
+            data:write(epoch, "\n")
+            data:write(iterations, "\n")
+            data:write(time, "\n")
+            data:close()
+
+            train:write(epoch .. ':' .. train_loss, "\n")
+            train:close()
+        end
     end
    
     if i % 10 == 0 then collectgarbage() end
