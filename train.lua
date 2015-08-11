@@ -184,7 +184,7 @@ if opt.visualize == true then
     -- Delete previous data from files
     io.open ('web_utils/data.txt', 'w')
     io.open ('web_utils/train.txt', 'w')
-    
+
     print('Visualization tools have been enabled. Visit the monitor.html page to see how your model training is progressing.')
 end
 -- make a bunch of clones after flattening, as that reallocates memory
@@ -192,6 +192,11 @@ clones = {}
 for name,proto in pairs(protos) do
     print('cloning ' .. name)
     clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
+end
+
+function round(num, idp)
+  local mult = 10^(idp or 0)
+  return math.floor(num * mult + 0.5) / mult
 end
 
 -- evaluate the loss over an entire split
@@ -374,9 +379,6 @@ for i = 1, iterations do
     end
 end
 
-function round(num, idp)
-  local mult = 10^(idp or 0)
-  return math.floor(num * mult + 0.5) / mult
-end
+
 
 
