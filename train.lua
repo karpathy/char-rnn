@@ -183,7 +183,9 @@ print('number of parameters in the model: ' .. params:nElement())
 if opt.visualize == true then
     -- Delete previous data from files
     io.open ('web_utils/data.txt', 'w')
-    io.open ('web_utils/train.txt', 'w')
+    file = io.open ('web_utils/train.txt', 'w')
+    file:write("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.")
+    file:close()
 
     print('Visualization tools have been enabled. Visit the monitor.html page to see how your model training is progressing.')
 end
@@ -349,6 +351,7 @@ for i = 1, iterations do
             -- Round values to 3 decimal places
             rounded_epoch = round(epoch, 3)
             rounded_train_loss = round(train_loss, 3)
+            rounded_time = round(time, 3)
             -- Write current data to files
             data = io.open ('web_utils/data.txt', 'w')
             train = io.open ('web_utils/train.txt', 'a')
@@ -357,10 +360,10 @@ for i = 1, iterations do
             data:write(rounded_epoch, "\n")
             data:write(i, "\n")
             data:write(iterations, "\n")
-            data:write(time, "\n")
+            data:write(rounded_time)
             data:close()
 
-            train:write(rounded_epoch .. ':' .. rounded_train_loss, "\n")
+            train:write("\n", rounded_epoch .. ':' .. rounded_train_loss)
             train:close()
         end
     end

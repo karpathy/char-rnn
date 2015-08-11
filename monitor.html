@@ -48,7 +48,7 @@ var labelData = [];
 var trainingValueData = [];
 Chart.defaults.global.animation = false;
 Chart.defaults.global.showTooltips = false;
-Chart.defaults.global.scaleShowLabels = true;
+//Chart.defaults.global.scaleShowLabels = true;
 
 function initGraph(){
    $.get('web_utils/train.txt', function(data) {
@@ -59,9 +59,11 @@ function initGraph(){
           if (i == 0){
             continue;
           }
+          //var epoch = lines[i].split(":")[0];
           var value = lines[i].split(":")[1];
           labelData.push("");
           trainingValueData.push(value);
+          console.log(value)
         }
   }, 'text'); 
 }
@@ -114,6 +116,7 @@ function graph(){
             gradient: ["#00688B", "#00B2EE"]
         }
     });
+
 function update() {
    $.get('web_utils/data.txt', function(data) {
       var lines = data.split("\n");
