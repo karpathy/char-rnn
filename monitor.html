@@ -52,7 +52,7 @@ Chart.defaults.global.scaleShowLabels = true;
 
 function initGraph(){
    $.get('web_utils/train.txt', function(data) {
-     labelData.length = 0;
+   labelData.length = 0;
    trainingValueData.length = 0;
       var lines = data.split("\n");
         for (var i = 0, len = lines.length; i < len; i++) {
@@ -118,7 +118,6 @@ function update() {
    $.get('web_utils/data.txt', function(data) {
       var lines = data.split("\n");
       var iter;
-
         for (var i = 0, len = lines.length; i < len; i++) {
             if (i == 1){
               $('.current_epoch').text(lines[i]); // Update current epoch
