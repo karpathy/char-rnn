@@ -349,7 +349,6 @@ for i = 1, iterations do
         if opt.visualize == true then
 
             -- Round values to 3 decimal places
-            rounded_epoch = round(epoch, 3)
             rounded_train_loss = round(train_loss, 3)
             rounded_time = round(time, 3)
             -- Write current data to files
@@ -357,13 +356,13 @@ for i = 1, iterations do
             train = io.open ('web_utils/train.txt', 'a')
 
             data:write ("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.", "\n")
-            data:write(rounded_epoch, "\n")
+            data:write(epoch, "\n")
             data:write(i, "\n")
             data:write(iterations, "\n")
             data:write(rounded_time)
             data:close()
 
-            train:write("\n", rounded_epoch .. ':' .. rounded_train_loss)
+            train:write("\n", epoch .. ':' .. rounded_train_loss)
             train:close()
         end
     end
