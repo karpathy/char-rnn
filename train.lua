@@ -181,7 +181,11 @@ end
 print('number of parameters in the model: ' .. params:nElement())
 
 if opt.visualize == true then
-print('Visualization tools have been enabled. Visit the monitor.html page to see how your model training is progressing.')
+    -- Delete previous data from files
+    io.open ('web_utils/data.txt', 'w')
+    io.open ('web_utils/train.txt', 'w')
+    
+    print('Visualization tools have been enabled. Visit the monitor.html page to see how your model training is progressing.')
 end
 -- make a bunch of clones after flattening, as that reallocates memory
 clones = {}
@@ -347,7 +351,11 @@ for i = 1, iterations do
             data:write(time, "\n")
             data:close()
 
-            train:write(epoch .. ':' .. train_loss, "\n")
+            -- Round values to 3 decimal places because graph breaks if too exact
+            rounded_epoch = round(epoch, 3)
+            rounded_train_loss = round(train_loss, 3)
+
+            train:write(rounded_epoch .. ':' .. rounded_train_loss, "\n")
             train:close()
         end
     end
@@ -364,6 +372,11 @@ for i = 1, iterations do
         print('loss is exploding, aborting.')
         break -- halt
     end
+end
+
+function round(num, idp)
+  local mult = 10^(idp or 0)
+  return math.floor(num * mult + 0.5) / mult
 end
 
 

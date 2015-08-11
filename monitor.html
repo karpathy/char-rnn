@@ -129,8 +129,6 @@ function update() {
               iter = lines[i];
             }
             else if (i == 3){
-              console.log(i)
-              console.log(lines[i]);
                 var percent = Math.round((iter / lines[i]) * 10000) / 100;
                 $('#bar').text(percent + '%')
                 $('#bar').attr('aria-valuenow', percent);
