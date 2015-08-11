@@ -179,6 +179,10 @@ params:uniform(-0.08, 0.08) -- small numbers uniform
 end
 
 print('number of parameters in the model: ' .. params:nElement())
+
+if opt.visualize == true then
+print('Visualization tools have been enabled. Visit the monitor.html page to see how your model training is progressing.')
+end
 -- make a bunch of clones after flattening, as that reallocates memory
 clones = {}
 for name,proto in pairs(protos) do
@@ -338,6 +342,7 @@ for i = 1, iterations do
 
             data:write ("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.", "\n")
             data:write(epoch, "\n")
+            data:write(i, "\n")
             data:write(iterations, "\n")
             data:write(time, "\n")
             data:close()
