@@ -345,20 +345,20 @@ for i = 1, iterations do
     if i % opt.print_every == 0 then
         print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
         if opt.visualize == true then
+
+            -- Round values to 3 decimal places
+            rounded_epoch = round(epoch, 3)
+            rounded_train_loss = round(train_loss, 3)
             -- Write current data to files
             data = io.open ('web_utils/data.txt', 'w')
             train = io.open ('web_utils/train.txt', 'a')
 
             data:write ("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.", "\n")
-            data:write(epoch, "\n")
+            data:write(rounded_epoch, "\n")
             data:write(i, "\n")
             data:write(iterations, "\n")
             data:write(time, "\n")
             data:close()
-
-            -- Round values to 3 decimal places because graph breaks if too exact
-            rounded_epoch = round(epoch, 3)
-            rounded_train_loss = round(train_loss, 3)
 
             train:write(rounded_epoch .. ':' .. rounded_train_loss, "\n")
             train:close()
