@@ -1,57 +1,78 @@
 <!DOCTYPE html>
+
 <html lang="en">
-   <head>
-      <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
-      <!-- Latest compiled and minified CSS -->
-      <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
-      <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js"></script>
-      <script type="text/javascript" src="web_utils/circle-progress.js"></script>
-      <link rel="stylesheet" href="web_utils/style.css">
-      <title>Char-RNN Monitoring Page</title>
-   </head>
-   <body>
-      <div class="center">
-         <div class="page-header">
+<head>
+
+    <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script><!-- Latest compiled and minified CSS -->
+    <link href=
+    "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"
+    rel="stylesheet">
+    <script src=
+    "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+    <script src=
+    "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js"></script>
+    <script src="web_utils/circle-progress.js" type="text/javascript"></script>
+    <link href="web_utils/style.css" rel="stylesheet">
+
+    <title>Char-RNN Monitoring Page</title>
+</head>
+
+<body>
+    <div class="center">
+        <div class="page-header">
             <h1>Char-RNN Training <small>Monitoring Page</small></h1>
-         </div>
-         <div class="row">
+        </div>
+
+        <div class="row">
             <div class="col-md-4">
-               <h4>Training Loss: <div class="training_loss">nil</div></h4>
-               <canvas id="myChart" width="400" height="400"></canvas>
-               <h5>Epoch</h5>
+                <h4>Training Loss:</h4>
+
+                <div class="training_loss">
+                    <h4>nil</h4>
+                </div><canvas height="400" id="myChart" width="400"></canvas>
+
+                <h5>Epoch</h5>
             </div>
+
             <div class="col-md-4">
-               <h4>Progress of current epoch</h4>
-               <div id="circle"></div>
-               <h4>
-                  Current epoch: 
-                  <div class="current_epoch">0</div>
-               </h4>
-               <h4>
-                  Current iteration: 
-                  <div class="current_iter">0</div>
-               </h4>
+                <h4>Progress of current epoch</h4>
+
+                <div id="circle"></div>
+
+                <h4>Current epoch:</h4>
+
+                <div class="current_epoch">
+                    <h4>0</h4>
+                </div>
+
+                <h4>Current iteration:</h4>
+
+                <div class="current_iter">
+                    <h4>0</h4>
+                </div>
             </div>
+
             <div class="col-md-4">
-               <h3>
-                  Time per batch: 
-                  <div class="time_per_batch"> 0s </div>
-               </h3>
+                <h3>Time per batch:</h3>
+
+                <div class="time_per_batch">
+                    <h3>0s </h3>
+                </div>
             </div>
-         </div>
-         <br>
-         <h4>Completion</h4>
-         <div class="container">
+        </div><br>
+
+        <h4>Completion</h4>
+
+        <div class="container">
             <div class="progress">
-               <div id="bar" class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;">
-                  0%
-               </div>
+                <div class="progress-bar progress-bar-striped active" id="bar"
+                style="width: 0%;">
+                    0%
+                </div>
             </div>
-         </div>
-      </div>
-      <script>
-         $.ajaxSetup({ cache: false });
+        </div>
+    </div><script>
+     $.ajaxSetup({ cache: false });
          var labelData = [];
          var trainingValueData = [];
          Chart.defaults.global.animation = false;
@@ -63,19 +84,35 @@
             $.get('web_utils/train.txt', function(data) {
             labelData.length = 0;
             trainingValueData.length = 0;
+            var previous;
                var lines = data.split("\n");
                  for (var i = 0, len = lines.length; i < len; i++) {
                    if (i == 0){
                      continue;
                    }
-                   //var epoch = lines[i].split(":")[0];
+                   if (i == 1){
                    var value = lines[i].split(":")[1];
+                   previous = value;
                    labelData.push("");
                    trainingValueData.push(value);
-                   if (i+1 == lines.length){
+                 }
+                 else {
+                  var value = lines[i].split(":")[1];
+                  if (i+1 == lines.length){
                     current_training_loss = value;
                     $(".training_loss").text(current_training_loss);
                    }
+                  if (((previous + 0.1) <= value) || ((previous - 0.1) >= value)) { // Check if previous data point is within 0.1 of next one
+                    previous = value;
+                    continue;
+
+                  }
+                   else {
+                   previous = value;
+                   labelData.push("");
+                   trainingValueData.push(value);
+                   }
+                 }
                  }
            }, 'text'); 
          }
@@ -166,8 +203,10 @@
          initGraph();
          window.setInterval(function(){
           update();
-          graph();
          }, 3000);
-      </script>
-   </body>
+         window.setInterval(function(){
+          graph();
+         }, 10000);
+    </script>
+</body>
 </html>
