@@ -10,7 +10,7 @@
     <script src=
     "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
     <script src=
-    "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js"></script>
+    "https://cdnjs.cloudflare.com/ajax/libs/canvasjs/1.7.0/canvasjs.min.js"></script>
     <script src="web_utils/circle-progress.js" type="text/javascript"></script>
     <link href="web_utils/style.css" rel="stylesheet">
 
@@ -29,7 +29,7 @@
 
                 <div class="training_loss">
                     <h4>Processing....</h4>
-                </div><canvas height="400" id="myChart" width="400"></canvas>
+                </div><div id="chartContainer" style="margin-left: 40px; height: 400px; width: 400;"></div></canvas>
 
                 <h5>Epoch</h5>
             </div>
@@ -75,10 +75,6 @@
      $.ajaxSetup({ cache: false });
          var labelData = [];
          var trainingValueData = [];
-         Chart.defaults.global.animation = false;
-         Chart.defaults.global.showTooltips = false;
-         Chart.defaults.global.showScale = false;
-         
          var current_training_loss;
          function initGraph(){
             $.get('web_utils/train.txt', function(data) {
@@ -97,65 +93,52 @@
                    trainingValueData.push(value);
                  }
                  else {
+                  var epoch = lines[i].split(":")[0];
                   var value = lines[i].split(":")[1];
                   if (i+1 == lines.length){
                     current_training_loss = value;
                     $(".training_loss").text(current_training_loss);
                    }
-                  if (((previous + 0.2) < value) || ((previous - 0.2) > value)) { // Check if previous data point is within 0.2 of next one
+                  if (((previous + 0.01) < value) || ((previous - 0.01) > value)) { // Check if previous data point is within 0.2 of next one
                     previous = value;
                     continue;
 
                   }
                    else {
                    previous = value;
-                   labelData.push("");
+                   labelData.push(epoch);
                    trainingValueData.push(value);
                    }
                  }
                  }
            }, 'text'); 
          }
-         var ctx = document.getElementById("myChart").getContext("2d");
-         var data = {
-             labels: labelData,
-             datasets: [
-                 {
-                     label: "My First dataset",
-                     fillColor: "#C8C8C8",
-                     strokeColor: "#00B2EE",
-                     pointColor: "#00688B",
-                     pointStrokeColor: "#fff",
-                     pointHighlightFill: "#fff",
-                     pointHighlightStroke: "rgba(220,220,220,1)",
-                     data: trainingValueData
-                 }
-             ]
-          };
-         var myLineChart = new Chart(ctx).Line(data, {
-             pointDot: false
-         });
+        
          function graph(){
            initGraph();
-           data = {
-             labels: labelData,
-             datasets: [
-                 {
-                     label: "My First dataset",
-                     fillColor: "#C8C8C8",
-                     strokeColor: "#00B2EE",
-                     pointColor: "#00688B",
-                     pointStrokeColor: "#fff",
-                     pointHighlightFill: "#fff",
-                     pointHighlightStroke: "rgba(220,220,220,1)",
-                     data: trainingValueData
-                 }
-             ]
-          };
-          
-           myLineChart = new Chart(ctx).Line(data, {
-             pointDot: false
-         });
+           var data = [];
+           for (var i = 0; i < labelData.length; i++){
+            var object = {};
+            object["x"] = Number(labelData[i]);
+            object["y"] = Number(trainingValueData[i]);
+            data.push(object);
+
+           }
+           var chart = new CanvasJS.Chart("chartContainer",
+    {
+
+       data: [
+      {
+        type: "line",
+
+        dataPoints: 
+        data
+        
+      }
+      ]
+    });
+
+    chart.render();
          }
           $('#circle').circleProgress({
                  value: 0.00,
@@ -207,7 +190,7 @@
          }, 3000);
          window.setInterval(function(){
           graph();
-         }, 8000);
+         }, 2000);
     </script>
 </body>
 </html>
