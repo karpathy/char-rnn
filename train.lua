@@ -348,8 +348,9 @@ for i = 1, iterations do
         print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
         if opt.visualize == true then
 
-            -- Round values to 3 decimal places
+            -- Truncate epoch value to 3 decimal places (rounding sometimes produces 2, which breaks the progress circle)
             truncate_epoch = tonumber(string.format("%.3f", epoch))
+             -- Round values to 3 decimal places
             rounded_train_loss = round(train_loss, 3)
             rounded_time = round(time, 3)
             -- Write current data to files
