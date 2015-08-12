@@ -48,7 +48,7 @@ var labelData = [];
 var trainingValueData = [];
 Chart.defaults.global.animation = false;
 Chart.defaults.global.showTooltips = false;
-//Chart.defaults.global.scaleShowLabels = true;
+Chart.defaults.global.showScale = false;
 
 function initGraph(){
    $.get('web_utils/train.txt', function(data) {
