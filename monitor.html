@@ -1,155 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
-<!-- Latest compiled and minified CSS -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js"></script>
-<script type="text/javascript" src="web_utils/circle-progress.js"></script>
-<link rel="stylesheet" href="web_utils/style.css">
-<title>Char-RNN Monitoring Page</title>
-</head>
-<body>
-<div class="center">
-<div class="page-header">
-  <h1>Char-RNN Training <small>Monitoring Page</small></h1>
-</div>
-<div class="row">
-  <div class="col-md-4">
-  <h4>Training Loss </h4><canvas id="myChart" width="400" height="400"></canvas>
-  <h5>Epoch</h5>
-  </div>
-  <div class="col-md-4">
-
-<h4>Progress of current epoch</h4>
- <div id="circle"></div>
- <h4>Current epoch: <div class="current_epoch">0</div></h4>
- <h4>Current iteration: <div class="current_iter">0</div></h4>
-</div>
-
-  <div class="col-md-4">
-  	<h3>Time per batch: <div class="time_per_batch"> 0s </div></h3>
-  </div>
-  </div>
-  <br>
-  <h4>Completion</h4>
-  <div class="container">
-  <div class="progress">
-  <div id="bar" class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;">
-    0%
-  </div>
-  </div>
-</div>
-</div>
-<script>
-$.ajaxSetup({ cache: false });
-var labelData = [];
-var trainingValueData = [];
-Chart.defaults.global.animation = false;
-Chart.defaults.global.showTooltips = false;
-Chart.defaults.global.showScale = false;
-
-function initGraph(){
-   $.get('web_utils/train.txt', function(data) {
-   labelData.length = 0;
-   trainingValueData.length = 0;
-      var lines = data.split("\n");
-        for (var i = 0, len = lines.length; i < len; i++) {
-          if (i == 0){
-            continue;
-          }
-          //var epoch = lines[i].split(":")[0];
-          var value = lines[i].split(":")[1];
-          labelData.push("");
-          trainingValueData.push(value);
-          console.log(value)
-        }
-  }, 'text'); 
-}
-var ctx = document.getElementById("myChart").getContext("2d");
-var data = {
-    labels: labelData,
-    datasets: [
-        {
-            label: "My First dataset",
-            fillColor: "rgba(220,220,220,0.2)",
-            strokeColor: "#00B2EE",
-            pointColor: "#00688B",
-            pointStrokeColor: "#fff",
-            pointHighlightFill: "#fff",
-            pointHighlightStroke: "rgba(220,220,220,1)",
-            data: trainingValueData
-        }
-    ]
- };
-var myLineChart = new Chart(ctx).Line(data, {
-    pointDot: false
-});
-function graph(){
-  initGraph();
-  data = {
-    labels: labelData,
-    datasets: [
-        {
-            label: "My First dataset",
-            fillColor: "rgba(220,220,220,0.2)",
-            strokeColor: "#00B2EE",
-            pointColor: "#00688B",
-            pointStrokeColor: "#fff",
-            pointHighlightFill: "#fff",
-            pointHighlightStroke: "rgba(220,220,220,1)",
-            data: trainingValueData
-        }
-    ]
- };
- 
-  myLineChart = new Chart(ctx).Line(data, {
-    pointDot: false
-});
-  //myLineChart.update();
-}
- $('#circle').circleProgress({
-        value: 0.00,
-        size: 280,
-        fill: {
-            gradient: ["#00688B", "#00B2EE"]
-        }
-    });
-
-function update() {
-   $.get('web_utils/data.txt', function(data) {
-      var lines = data.split("\n");
-      var iter;
-        for (var i = 0, len = lines.length; i < len; i++) {
-            if (i == 1){
-              $('.current_epoch').text(lines[i]); // Update current epoch
-              var decimal = lines[i].split('.')[1]
-              $('#circle').circleProgress('value', decimal / 1000);
-            }
-            else if (i == 2){
-              $('.current_iter').text(lines[i]); // Update current iteration
-              iter = lines[i];
-            }
-            else if (i == 3){
-                var percent = Math.round((iter / lines[i]) * 10000) / 100;
-                $('#bar').text(percent + '%')
-                $('#bar').attr('aria-valuenow', percent);
-                $('#bar').css("width", percent + "%")
-            }
-            else if (i == 4){
-               $('.time_per_batch').text(lines[i]); // Update time per batch
-            }
-        }
-}, 'text');
-}
-update();
-initGraph();
-window.setInterval(function(){
- update();
- graph();
-}, 3000);
-</script>
-</body>
-
+   <head>
+      <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+      <!-- Latest compiled and minified CSS -->
+      <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+      <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js"></script>
+      <script type="text/javascript" src="web_utils/circle-progress.js"></script>
+      <link rel="stylesheet" href="web_utils/style.css">
+      <title>Char-RNN Monitoring Page</title>
+   </head>
+   <body>
+      <div class="center">
+         <div class="page-header">
+            <h1>Char-RNN Training <small>Monitoring Page</small></h1>
+         </div>
+         <div class="row">
+            <div class="col-md-4">
+               <h4>Training Loss </h4>
+               <canvas id="myChart" width="400" height="400"></canvas>
+               <h5>Epoch</h5>
+            </div>
+            <div class="col-md-4">
+               <h4>Progress of current epoch</h4>
+               <div id="circle"></div>
+               <h4>
+                  Current epoch: 
+                  <div class="current_epoch">0</div>
+               </h4>
+               <h4>
+                  Current iteration: 
+                  <div class="current_iter">0</div>
+               </h4>
+            </div>
+            <div class="col-md-4">
+               <h3>
+                  Time per batch: 
+                  <div class="time_per_batch"> 0s </div>
+               </h3>
+            </div>
+         </div>
+         <br>
+         <h4>Completion</h4>
+         <div class="container">
+            <div class="progress">
+               <div id="bar" class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;">
+                  0%
+               </div>
+            </div>
+         </div>
+      </div>
+      <script>
+         $.ajaxSetup({ cache: false });
+         var labelData = [];
+         var trainingValueData = [];
+         Chart.defaults.global.animation = false;
+         Chart.defaults.global.showTooltips = false;
+         Chart.defaults.global.showScale = false;
+         
+         function initGraph(){
+            $.get('web_utils/train.txt', function(data) {
+            labelData.length = 0;
+            trainingValueData.length = 0;
+               var lines = data.split("\n");
+                 for (var i = 0, len = lines.length; i < len; i++) {
+                   if (i == 0){
+                     continue;
+                   }
+                   //var epoch = lines[i].split(":")[0];
+                   var value = lines[i].split(":")[1];
+                   labelData.push("");
+                   trainingValueData.push(value);
+                   console.log(value)
+                 }
+           }, 'text'); 
+         }
+         var ctx = document.getElementById("myChart").getContext("2d");
+         var data = {
+             labels: labelData,
+             datasets: [
+                 {
+                     label: "My First dataset",
+                     fillColor: "rgba(220,220,220,0.2)",
+                     strokeColor: "#00B2EE",
+                     pointColor: "#00688B",
+                     pointStrokeColor: "#fff",
+                     pointHighlightFill: "#fff",
+                     pointHighlightStroke: "rgba(220,220,220,1)",
+                     data: trainingValueData
+                 }
+             ]
+          };
+         var myLineChart = new Chart(ctx).Line(data, {
+             pointDot: false
+         });
+         function graph(){
+           initGraph();
+           data = {
+             labels: labelData,
+             datasets: [
+                 {
+                     label: "My First dataset",
+                     fillColor: "rgba(220,220,220,0.2)",
+                     strokeColor: "#00B2EE",
+                     pointColor: "#00688B",
+                     pointStrokeColor: "#fff",
+                     pointHighlightFill: "#fff",
+                     pointHighlightStroke: "rgba(220,220,220,1)",
+                     data: trainingValueData
+                 }
+             ]
+          };
+          
+           myLineChart = new Chart(ctx).Line(data, {
+             pointDot: false
+         });
+           //myLineChart.update();
+         }
+          $('#circle').circleProgress({
+                 value: 0.00,
+                 size: 280,
+                 fill: {
+                     gradient: ["#00688B", "#00B2EE"]
+                 }
+             });
+         
+         function update() {
+            $.get('web_utils/data.txt', function(data) {
+               var lines = data.split("\n");
+               var iter;
+                 for (var i = 0, len = lines.length; i < len; i++) {
+                     if (i == 1){
+                       $('.current_epoch').text(lines[i]); // Update current epoch
+                       var decimal = lines[i].split('.')[1]
+                       $('#circle').circleProgress('value', decimal / 1000);
+                     }
+                     else if (i == 2){
+                       $('.current_iter').text(lines[i]); // Update current iteration
+                       iter = lines[i];
+                     }
+                     else if (i == 3){
+                         var percent = Math.round((iter / lines[i]) * 10000) / 100;
+                         $('#bar').text(percent + '%')
+                         $('#bar').attr('aria-valuenow', percent);
+                         $('#bar').css("width", percent + "%")
+                     }
+                     else if (i == 4){
+                        $('.time_per_batch').text(lines[i]); // Update time per batch
+                     }
+                 }
+         }, 'text');
+         }
+         update();
+         initGraph();
+         window.setInterval(function(){
+          update();
+          graph();
+         }, 3000);
+      </script>
+   </body>
 </html>
