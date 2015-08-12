@@ -28,7 +28,7 @@
                 <h4>Training Loss:</h4>
 
                 <div class="training_loss">
-                    <h4>nil</h4>
+                    <h4>Processing....</h4>
                 </div><canvas height="400" id="myChart" width="400"></canvas>
 
                 <h5>Epoch</h5>
@@ -102,7 +102,7 @@
                     current_training_loss = value;
                     $(".training_loss").text(current_training_loss);
                    }
-                  if (((previous + 0.1) <= value) || ((previous - 0.1) >= value)) { // Check if previous data point is within 0.1 of next one
+                  if (((previous + 0.2) < value) || ((previous - 0.2) > value)) { // Check if previous data point is within 0.2 of next one
                     previous = value;
                     continue;
 
@@ -122,7 +122,7 @@
              datasets: [
                  {
                      label: "My First dataset",
-                     fillColor: "rgba(220,220,220,0.2)",
+                     fillColor: "#C8C8C8",
                      strokeColor: "#00B2EE",
                      pointColor: "#00688B",
                      pointStrokeColor: "#fff",
@@ -142,7 +142,7 @@
              datasets: [
                  {
                      label: "My First dataset",
-                     fillColor: "rgba(220,220,220,0.2)",
+                     fillColor: "#C8C8C8",
                      strokeColor: "#00B2EE",
                      pointColor: "#00688B",
                      pointStrokeColor: "#fff",
@@ -199,14 +199,15 @@
                  }
          }, 'text');
          }
-         update();
-         initGraph();
+         $(window).load(function() {
+          update();
+           });         
          window.setInterval(function(){
           update();
          }, 3000);
          window.setInterval(function(){
           graph();
-         }, 10000);
+         }, 8000);
     </script>
 </body>
 </html>
