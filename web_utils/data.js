@@ -28,7 +28,7 @@
                         current_training_loss = value;
                         $(".training_loss").text(current_training_loss);
                     }
-                    if (((previous + 0.01) < value) || ((previous - 0.01) > value)) { // Check if previous data point is within 0.2 of next one
+                    if (((previous + 0.01) < value) || ((previous - 0.01) > value)) { // Check if previous data point is within 0.01 of next one
                         previous = value;
                         continue;
 
@@ -80,8 +80,8 @@
                 if (i == 1) {
                     $('.current_epoch').text(lines[i]); // Update current epoch
                     var decimal = lines[i].split('.')[1]
-                    if (decimal.length == 2) {
-                        decimal = decimal + 0;
+                    if (decimal.length == 2) { // Sometimes the training script outputs epoch values with less than 3 decimal places
+                        decimal = decimal + 0; 
                     } else if (decimal.length == 1) {
                         decimal = decimal + 00;
                     }
@@ -110,4 +110,4 @@
     }, 3000);
     window.setInterval(function() {
         graph();
-    }, 2000);
+    }, 4000);
