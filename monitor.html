@@ -17,7 +17,7 @@
          </div>
          <div class="row">
             <div class="col-md-4">
-               <h4>Training Loss </h4>
+               <h4>Training Loss: <div class="training_loss">nil</div></h4>
                <canvas id="myChart" width="400" height="400"></canvas>
                <h5>Epoch</h5>
             </div>
@@ -58,6 +58,7 @@
          Chart.defaults.global.showTooltips = false;
          Chart.defaults.global.showScale = false;
          
+         var current_training_loss;
          function initGraph(){
             $.get('web_utils/train.txt', function(data) {
             labelData.length = 0;
@@ -71,7 +72,10 @@
                    var value = lines[i].split(":")[1];
                    labelData.push("");
                    trainingValueData.push(value);
-                   console.log(value)
+                   if (i+1 == lines.length){
+                    current_training_loss = value;
+                    $(".training_loss").text(current_training_loss);
+                   }
                  }
            }, 'text'); 
          }
@@ -146,7 +150,7 @@
                          $('#bar').css("width", percent + "%")
                      }
                      else if (i == 4){
-                        $('.time_per_batch').text(lines[i]); // Update time per batch
+                        $('.time_per_batch').text(lines[i] + "s"); // Update time per batch
                      }
                  }
          }, 'text');
