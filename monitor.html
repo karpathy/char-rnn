@@ -139,6 +139,9 @@
                        if (decimal.length == 2){
                         decimal = decimal + 0;
                        }
+                       else if (decimal.length == 1){
+                        decimal = decimal + 00;
+                       }
                        var percent = decimal / 1000;
                          $('#circle').circleProgress('value', decimal / 1000);
                       
