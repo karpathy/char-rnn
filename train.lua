@@ -285,7 +285,7 @@ val_losses = {}
 local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
 local iterations = opt.max_epochs * loader.ntrain
 local iterations_per_epoch = loader.ntrain
-local loss0 = nil
+local train_loss = math.huge
 for i = 1, iterations do
     local epoch = i / loader.ntrain
 
@@ -293,7 +293,8 @@ for i = 1, iterations do
     local _, loss = optim.rmsprop(feval, params, optim_state)
     local time = timer:time().real
 
-    local train_loss = loss[1] -- the loss is inside a list, pop it
+    local loss0 = train_loss
+    train_loss = loss[1] -- the loss is inside a list, pop it
     train_losses[i] = train_loss
 
     -- exponential learning rate decay
@@ -336,7 +337,7 @@ for i = 1, iterations do
         print('loss is NaN.  This usually indicates a bug.  Please check the issues page for existing issues, or create a new issue, if none exist.  Ideally, please state: your operating system, 32-bit/64-bit, your blas version, cpu/cuda/cl?')
         break -- halt
     end
-    if loss0 == nil then loss0 = loss[1] end
+
     if loss[1] > loss0 * 3 then
         print('loss is exploding, aborting.')
         break -- halt
