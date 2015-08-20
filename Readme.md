@@ -6,7 +6,7 @@ This code implements **multi-layer Recurrent Neural Network** (RNN, LSTM, and GR
 The context of this code base is described in detail in my [blog post](http://karpathy.github.io/2015/05/21/rnn-effectiveness/). The [project page](http://cs.stanford.edu/people/karpathy/char-rnn/) that has a few pointers to some datasets.
 
 
-If you are new to Torch/Lua/Neural Nets, it might be helpful to know that this code is really just a slightly more fancy version of this [100-line gist](https://gist.github.com/karpathy/d4dee566867f8291f086) that I wrote in Python/numpy. Th code in this repo additionally allows for multiple layers, uses an LSTM instead of an RNN, has more supporting code for model checkpointing, and is of course much more efficient.
+If you are new to Torch/Lua/Neural Nets, it might be helpful to know that this code is really just a slightly more fancy version of this [100-line gist](https://gist.github.com/karpathy/d4dee566867f8291f086) that I wrote in Python/numpy. The code in this repo additionally allows for multiple layers, uses an LSTM instead of an RNN, has more supporting code for model checkpointing, and is of course much more efficient.
 
 This code was originally based on Oxford University Machine Learning class [practical 6](https://github.com/oxford-cs-ml-2015/practical6), which is in turn based on [learning to execute](https://github.com/wojciechz/learning_to_execute) code from Wojciech Zaremba. Chunks of it were also developed in collaboration with my labmate [Justin Johnson](https://github.com/jcjohnson/).
 
