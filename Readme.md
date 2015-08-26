@@ -13,11 +13,12 @@ This code was originally based on Oxford University Machine Learning class [prac
 ## Requirements
 
 This code is written in Lua and requires [Torch](http://torch.ch/).
-Additionally, you need to install the `nngraph` and `optim` packages using [LuaRocks](https://luarocks.org/) which you will be able to do after installing Torch:
+Additionally, you need to install the `nngraph`, `nn` and `optim` packages using [LuaRocks](https://luarocks.org/) which you will be able to do after installing Torch:
 
 ```bash
 $ luarocks install nngraph 
 $ luarocks install optim
+$ luarocks install nn
 ```
 
 If you'd like to use CUDA GPU computing, you'll first need to install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit), then the `cutorch` and `cunn` packages:
