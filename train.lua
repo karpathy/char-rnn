@@ -171,7 +171,19 @@ params, grad_params = model_utils.combine_all_parameters(protos.rnn)
 
 -- initialization
 if do_random_init then
-params:uniform(-0.08, 0.08) -- small numbers uniform
+    params:uniform(-0.08, 0.08) -- small uniform numbers
+end
+-- initialize the LSTM forget gates with slightly higher biases to encourage remembering in the beginning
+if opt.model == 'lstm' then
+    for layer_idx = 1, opt.num_layers do
+        for _,node in ipairs(protos.rnn.forwardnodes) do
+            if node.data.annotations.name == "i2h_" .. layer_idx then
+                print('setting forget gate biases to 1 in LSTM layer ' .. layer_idx)
+                -- the gates are, in order, i,f,o,g, so f is the 2nd block of weights
+                node.data.module.bias[{{opt.rnn_size+1, 2*opt.rnn_size}}]:fill(1.0)
+            end
+        end
+    end
 end
 
 print('number of parameters in the model: ' .. params:nElement())

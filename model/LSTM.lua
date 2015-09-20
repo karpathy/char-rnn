@@ -27,8 +27,8 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
       input_size_L = rnn_size
     end
     -- evaluate the input sums at once for efficiency
-    local i2h = nn.Linear(input_size_L, 4 * rnn_size)(x)
-    local h2h = nn.Linear(rnn_size, 4 * rnn_size)(prev_h)
+    local i2h = nn.Linear(input_size_L, 4 * rnn_size)(x):annotate{name='i2h_'..L}
+    local h2h = nn.Linear(rnn_size, 4 * rnn_size)(prev_h):annotate{name='h2h_'..L}
     local all_input_sums = nn.CAddTable()({i2h, h2h})
 
     local reshaped = nn.Reshape(4, rnn_size)(all_input_sums)
@@ -54,7 +54,7 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
   -- set up the decoder
   local top_h = outputs[#outputs]
   if dropout > 0 then top_h = nn.Dropout(dropout)(top_h) end
-  local proj = nn.Linear(rnn_size, input_size)(top_h)
+  local proj = nn.Linear(rnn_size, input_size)(top_h):annotate{name='decoder'}
   local logsoft = nn.LogSoftMax()(proj)
   table.insert(outputs, logsoft)
 
