@@ -38,6 +38,8 @@ cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain th
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
 cmd:option('-model', 'lstm', 'lstm,gru or rnn')
+-- Training visualization
+cmd:option('-visualize', false, 'Whether to enable visualization of model training in browser')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
@@ -66,6 +68,8 @@ cmd:text()
 -- parse input params
 opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
+
+
 -- train / val / test split for data, in fractions
 local test_frac = math.max(0, 1 - (opt.train_frac + opt.val_frac))
 local split_sizes = {opt.train_frac, opt.val_frac, test_frac} 
@@ -187,11 +191,26 @@ if opt.model == 'lstm' then
 end
 
 print('number of parameters in the model: ' .. params:nElement())
+
+if opt.visualize == true then
+    -- Delete previous data from files
+    io.open ('web_utils/data.txt', 'w')
+    file = io.open ('web_utils/train.txt', 'w')
+    file:write("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.")
+    file:close()
+
+    print('Visualization tools have been enabled. Visit the monitor.html page to see how your model training is progressing.')
+end
 -- make a bunch of clones after flattening, as that reallocates memory
 clones = {}
 for name,proto in pairs(protos) do
     print('cloning ' .. name)
     clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
+end
+
+function round(num, idp)
+  local mult = 10^(idp or 0)
+  return math.floor(num * mult + 0.5) / mult
 end
 
 -- evaluate the loss over an entire split
@@ -340,6 +359,27 @@ for i = 1, iterations do
 
     if i % opt.print_every == 0 then
         print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
+        if opt.visualize == true then
+
+            -- Truncate epoch value to 3 decimal places (rounding sometimes produces 2, which breaks the progress circle)
+            truncate_epoch = tonumber(string.format("%.3f", epoch))
+             -- Round values to 3 decimal places
+            rounded_train_loss = round(train_loss, 3)
+            rounded_time = round(time, 3)
+            -- Write current data to files
+            data = io.open ('web_utils/data.txt', 'w')
+            train = io.open ('web_utils/train.txt', 'a')
+
+            data:write ("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.", "\n")
+            data:write(truncate_epoch, "\n")
+            data:write(i, "\n")
+            data:write(iterations, "\n")
+            data:write(rounded_time)
+            data:close()
+
+            train:write("\n", truncate_epoch .. ':' .. rounded_train_loss)
+            train:close()
+        end
     end
    
     if i % 10 == 0 then collectgarbage() end
@@ -355,5 +395,7 @@ for i = 1, iterations do
         break -- halt
     end
 end
+
+
 
 
