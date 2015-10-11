@@ -58,6 +58,7 @@ cmd:option('-print_every',1,'how many steps/minibatches between printing out the
 cmd:option('-eval_val_every',1000,'every how many iterations should we evaluate on validation data?')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
 cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
+cmd:option('-accurate_gpu_timing',0,'set this flag to 1 to get precise timings when using GPU. Might make code bit slower but reports accurate timings.')
 -- GPU/CPU
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
 cmd:option('-opencl',0,'use OpenCL (instead of CUDA)')
@@ -194,6 +195,22 @@ for name,proto in pairs(protos) do
     clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
 end
 
+-- preprocessing helper function
+function prepro(x,y)
+    x = x:transpose(1,2):contiguous() -- swap the axes for faster indexing
+    y = y:transpose(1,2):contiguous()
+    if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
+        -- have to convert to float because integers can't be cuda()'d
+        x = x:float():cuda()
+        y = y:float():cuda()
+    end
+    if opt.gpuid >= 0 and opt.opencl == 1 then -- ship the input arrays to GPU
+        x = x:cl()
+        y = y:cl()
+    end
+    return x,y
+end
+
 -- evaluate the loss over an entire split
 function eval_split(split_index, max_batches)
     print('evaluating loss over split index ' .. split_index)
@@ -207,23 +224,15 @@ function eval_split(split_index, max_batches)
     for i = 1,n do -- iterate over batches in the split
         -- fetch a batch
         local x, y = loader:next_batch(split_index)
-        if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
-            -- have to convert to float because integers can't be cuda()'d
-            x = x:float():cuda()
-            y = y:float():cuda()
-        end
-        if opt.gpuid >= 0 and opt.opencl == 1 then -- ship the input arrays to GPU
-            x = x:cl()
-            y = y:cl()
-        end
+        x,y = prepro(x,y)
         -- forward pass
         for t=1,opt.seq_length do
             clones.rnn[t]:evaluate() -- for dropout proper functioning
-            local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
+            local lst = clones.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
             rnn_state[t] = {}
             for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
             prediction = lst[#lst] 
-            loss = loss + clones.criterion[t]:forward(prediction, y[{{}, t}])
+            loss = loss + clones.criterion[t]:forward(prediction, y[t])
         end
         -- carry over lstm state
         rnn_state[0] = rnn_state[#rnn_state]
@@ -244,26 +253,18 @@ function feval(x)
 
     ------------------ get minibatch -------------------
     local x, y = loader:next_batch(1)
-    if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
-        -- have to convert to float because integers can't be cuda()'d
-        x = x:float():cuda()
-        y = y:float():cuda()
-    end
-    if opt.gpuid >= 0 and opt.opencl == 1 then -- ship the input arrays to GPU
-        x = x:cl()
-        y = y:cl()
-    end
+    x,y = prepro(x,y)
     ------------------- forward pass -------------------
     local rnn_state = {[0] = init_state_global}
     local predictions = {}           -- softmax outputs
     local loss = 0
     for t=1,opt.seq_length do
         clones.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
-        local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
+        local lst = clones.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
         rnn_state[t] = {}
         for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
         predictions[t] = lst[#lst] -- last element is the prediction
-        loss = loss + clones.criterion[t]:forward(predictions[t], y[{{}, t}])
+        loss = loss + clones.criterion[t]:forward(predictions[t], y[t])
     end
     loss = loss / opt.seq_length
     ------------------ backward pass -------------------
@@ -271,9 +272,9 @@ function feval(x)
     local drnn_state = {[opt.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
     for t=opt.seq_length,1,-1 do
         -- backprop through loss, and softmax/linear
-        local doutput_t = clones.criterion[t]:backward(predictions[t], y[{{}, t}])
+        local doutput_t = clones.criterion[t]:backward(predictions[t], y[t])
         table.insert(drnn_state[t], doutput_t)
-        local dlst = clones.rnn[t]:backward({x[{{}, t}], unpack(rnn_state[t-1])}, drnn_state[t])
+        local dlst = clones.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
         drnn_state[t-1] = {}
         for k,v in pairs(dlst) do
             if k > 1 then -- k == 1 is gradient on x, which we dont need
@@ -304,8 +305,16 @@ for i = 1, iterations do
 
     local timer = torch.Timer()
     local _, loss = optim.rmsprop(feval, params, optim_state)
+    if opt.accurate_gpu_timing == 1 and opt.gpuid >= 0 then
+        --[[
+        Note on timing: The reported time can be off because the GPU is invoked async. If one
+        wants to have exactly accurate timings one must call cutorch.synchronize() right here.
+        I will avoid doing so by default because this can incur computational overhead.
+        --]]
+        cutorch.synchronize()
+    end
     local time = timer:time().real
-
+    
     local train_loss = loss[1] -- the loss is inside a list, pop it
     train_losses[i] = train_loss
 
@@ -339,7 +348,7 @@ for i = 1, iterations do
     end
 
     if i % opt.print_every == 0 then
-        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
+        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.4fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
     end
    
     if i % 10 == 0 then collectgarbage() end
