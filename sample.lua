@@ -3,7 +3,7 @@
 
 This file samples characters from a trained model
 
-Code is based on implementation in 
+Code is based on implementation in
 https://github.com/oxford-cs-ml-2015/practical6
 
 ]]--
@@ -113,7 +113,7 @@ local seed_text = opt.primetext
 if string.len(seed_text) > 0 then
     gprint('seeding with ' .. seed_text)
     gprint('--------------------------')
-    for c in seed_text:gmatch'.' do
+    for char_code, c in pairs(UTF8ToCharArray(seed_text)) do
         prev_char = torch.Tensor{vocab[c]}
         io.write(ivocab[prev_char[1]])
         if opt.gpuid >= 0 and opt.opencl == 0 then prev_char = prev_char:cuda() end
@@ -158,4 +158,3 @@ for i=1, opt.length do
     io.write(ivocab[prev_char[1]])
 end
 io.write('\n') io.flush()
-
