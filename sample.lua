@@ -94,18 +94,26 @@ for c,i in pairs(vocab) do ivocab[i] = c end
 
 -- initialize the rnn state to all zeros
 gprint('creating an ' .. checkpoint.opt.model .. '...')
-local current_state
-current_state = {}
-for L = 1,checkpoint.opt.num_layers do
-    -- c and h for all layers
-    local h_init = torch.zeros(1, checkpoint.opt.rnn_size):double()
-    if opt.gpuid >= 0 and opt.opencl == 0 then h_init = h_init:cuda() end
-    if opt.gpuid >= 0 and opt.opencl == 1 then h_init = h_init:cl() end
-    table.insert(current_state, h_init:clone())
-    if checkpoint.opt.model == 'lstm' then
+
+local current_state = {}
+for L=1,opt.num_layers do
+    local h_init = torch.zeros(1, opt.rnn_size)
+    if opt.gpuid >=0 and opt.opencl == 0 then h_init = h_init:cuda() end
+    if opt.gpuid >=0 and opt.opencl == 1 then h_init = h_init:cl() end
+    if opt.model == 'lstmex' then
+      local m_init = torch.zeros(1, opt.lstmex_memory_slots ,opt.rnn_size)
+      if opt.gpuid >=0 and opt.opencl == 0 then m_init = m_init:cuda() end
+      if opt.gpuid >=0 and opt.opencl == 1 then m_init = m_init:cl() end
+      table.insert(current_state, m_init:clone())
+      table.insert(current_state, h_init:clone())
+    else
+      table.insert(current_state, h_init:clone())
+    end
+    if opt.model == 'lstm' then
         table.insert(current_state, h_init:clone())
     end
 end
+
 state_size = #current_state
 
 -- do a few seeded timesteps
