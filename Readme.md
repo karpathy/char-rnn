@@ -41,7 +41,7 @@ $ luarocks install clnn
 
 All input data is stored inside the `data/` directory. You'll notice that there is an example dataset included in the repo (in folder `data/tinyshakespeare`) which consists of a subset of works of Shakespeare. I'm providing a few more datasets on the [project page](http://cs.stanford.edu/people/karpathy/char-rnn/).
 
-**Your own data**: If you'd like to use your own data create a single file `input.txt` and place it into a folder in `data/`. For example, `data/some_folder/input.txt`. The first time you run the training script it will write two more convenience files into `data/some_folder`.
+**Your own data**: If you'd like to use your own data create a single file `input1.txt` and place it into a folder in `data/`. For example, `data/some_folder/input1.txt`. The first time you run the training script it will write two more convenience files into `data/some_folder`. You can use more than one file of data in which case you increment 1 for each file.
 
 Note that if your data is too small (1MB is already considered very small) the RNN won't learn very effectively. Remember that it has to learn everything completely from scratch.
 
@@ -52,13 +52,13 @@ Conversely if your data is large (more than about 2MB), feel confident to increa
 Start training the model using `train.lua`, for example:
 
 ```
-$ th train.lua -data_dir data/some_folder -gpuid -1
+$ th train.lua -data_dir data/some_folder -gpuid -1 -max_count 1
 ```
 
-The `-data_dir` flag is most important since it specifies the dataset to use. Notice that in this example we're also setting `gpuid` to -1 which tells the code to train using CPU, otherwise it defaults to GPU 0. There are many other flags for various options. Consult `$ th train.lua -help` for comprehensive settings. Here's another example:
+The `-data_dir` flag is most important since it specifies the dataset to use. Notice that in this example we're also setting `gpuid` to -1 which tells the code to train using CPU, otherwise it defaults to GPU 0. There are many other flags for various options. Consult `$ th train.lua -help` for comprehensive settings. Whenever you are using more than one input file make '-max_count' equal the number of input file you have. Here's another example:
 
 ```
-$ th train.lua -data_dir data/some_folder -rnn_size 512 -num_layers 2 -dropout 0.5
+$ th train.lua -data_dir data/some_folder -rnn_size 512 -num_layers 2 -dropout 0.5 -max_count 1
 ```
 
 While the model is training it will periodically write checkpoint files to the `cv` folder. The frequency with which these checkpoints are written is controlled with number of iterations, as specified with the `eval_val_every` option (e.g. if this is 1 then a checkpoint is written every iteration). The filename of these checkpoints contains a very imporatant number: the **loss**. For example, a checkpoint with filename `lm_lstm_epoch0.95_2.0681.t7` indicates that at this point the model was on epoch 0.95 (i.e. it has almost done one full pass over the training data), and the loss on validation data was 2.0681. This number is very important because the lower it is, the better the checkpoint works. Once you start to generate data (discussed below), you will want to use the model checkpoint that has the lowest validation loss. Notice that this might not necessarily be the last checkpoint at the end of training (due to possible overfitting).
