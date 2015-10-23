@@ -83,7 +83,11 @@ function PrintTensor:updateOutput(input)
   self.count = self.count + 1
   if self.count % self.interval == 0 then
     gnuplot.title(self.label)
-    gnuplot.imagesc(input[1],'memory')
+    if input:nDimension() == 3 then
+      gnuplot.imagesc(input[1],'memory')
+    else
+      gnuplot.imagesc(input ,'memory')
+    end
   end
   return self.output
 end

@@ -11,7 +11,8 @@ function OneHot:__init(outputSize)
 end
 
 function OneHot:updateOutput(input)
-  self.output:resize(input:size(1), self.outputSize):zero()
+  --self.output:resize(input:size(1), self.outputSize):zero()
+  self.output:resize(self.outputSize):zero()
   if self._eye == nil then self._eye = torch.eye(self.outputSize) end
   self._eye = self._eye:float()
   local longInput = input:long()
