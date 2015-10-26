@@ -130,7 +130,7 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     local cache_len = 10000
     local rawdata
     local tot_len = 0
-    f = io.open(in_textfile, "r")
+    local f = assert(io.open(in_textfile, "r"))
 
     -- create vocabulary if it doesn't exist yet
     print('creating vocabulary mapping...')
@@ -157,7 +157,7 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     -- construct a tensor with all the data
     print('putting data into tensor...')
     local data = torch.ByteTensor(tot_len) -- store it into 1D first, then rearrange
-    f = io.open(in_textfile, "r")
+    f = assert(io.open(in_textfile, "r"))
     local currlen = 0
     rawdata = f:read(cache_len)
     repeat
