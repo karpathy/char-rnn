@@ -118,7 +118,7 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 -- define the model: prototypes for one timestep, then clone them in time
 local do_random_init = true
 if string.len(opt.init_from) > 0 then
-    print('loading an LSTM from checkpoint ' .. opt.init_from)
+    print('loading a model from checkpoint ' .. opt.init_from)
     local checkpoint = torch.load(opt.init_from)
     protos = checkpoint.protos
     -- make sure the vocabs are the same
