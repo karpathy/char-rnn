@@ -118,21 +118,28 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 -- define the model: prototypes for one timestep, then clone them in time
 local do_random_init = true
 if string.len(opt.init_from) > 0 then
-    print('loading an LSTM from checkpoint ' .. opt.init_from)
+    print('loading a model from checkpoint ' .. opt.init_from)
     local checkpoint = torch.load(opt.init_from)
     protos = checkpoint.protos
     -- make sure the vocabs are the same
     local vocab_compatible = true
-    for c,i in pairs(checkpoint.vocab) do 
-        if not vocab[c] == i then 
+    local checkpoint_vocab_size = 0
+    for c,i in pairs(checkpoint.vocab) do
+        if not (vocab[c] == i) then
             vocab_compatible = false
         end
+        checkpoint_vocab_size = checkpoint_vocab_size + 1
+    end
+    if not (checkpoint_vocab_size == vocab_size) then
+        vocab_compatible = false
+        print('checkpoint_vocab_size: ' .. checkpoint_vocab_size)
     end
     assert(vocab_compatible, 'error, the character vocabulary for this dataset and the one in the saved checkpoint are not the same. This is trouble.')
     -- overwrite model settings based on checkpoint to ensure compatibility
-    print('overwriting rnn_size=' .. checkpoint.opt.rnn_size .. ', num_layers=' .. checkpoint.opt.num_layers .. ' based on the checkpoint.')
+    print('overwriting rnn_size=' .. checkpoint.opt.rnn_size .. ', num_layers=' .. checkpoint.opt.num_layers .. ', model=' .. checkpoint.opt.model .. ' based on the checkpoint.')
     opt.rnn_size = checkpoint.opt.rnn_size
     opt.num_layers = checkpoint.opt.num_layers
+    opt.model = checkpoint.opt.model
     do_random_init = false
 else
     print('creating an ' .. opt.model .. ' with ' .. opt.num_layers .. ' layers')
