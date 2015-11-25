@@ -79,7 +79,7 @@ $ th sample.lua cv/some_checkpoint.t7 -gpuid -1
 
 Make sure that if your checkpoint was trained with GPU it is also sampled from with GPU, or vice versa. Otherwise the code will (currently) complain. As with the train script, see `$ th sample.lua -help` for full options. One important one is (for example) `-length 10000` which would generate 10,000 characters (default = 2000).
 
-**Temperature**. An important parameter you may want to play with is `-temperature`, which takes a number in range \(0, 1\] (0 not included), default = 1. The temperature is dividing the predicted log probabilities before the Softmax, so lower temperature will cause the model to make more likely, but also more boring and conservative predictions. Higher temperatures cause the model to take more chances and increase diversity of results, but at a cost of more mistakes.
+**Temperature**. An important parameter you may want to play with is `-temperature`, which takes a number in range \(0, 1\] (0 not included), default = 1. The temperature is dividing the predicted log probabilities before the Softmax, so lower temperature will cause the model to make more likely, but also more boring and conservative predictions. Higher temperatures cause the model to take more chances and increase diversity of results, but at a cost of more mistakes.  More details on softmax temperature at https://en.wikipedia.org/wiki/Softmax_function , in section 'Reinforcement learning'.
 
 **Priming**. It's also possible to prime the model with some starting text using `-primetext`. This starts out the RNN with some hardcoded characters to *warm* it up with some context before it starts generating text. E.g. a fun primetext might be `-primetext "the meaning of life is "`. 
 
