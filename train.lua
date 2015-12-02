@@ -134,6 +134,7 @@ for name, proto in pairs(protos) do
     print('cloning ' .. name)
     model[name] = model_utils.clone_many_times(proto, opt.seq_length)
 end
+model.seq_length = opt.seq_length
 
 -- preprocessing helper function
 function prepro(x,y)
@@ -180,52 +181,33 @@ end
 local init_state_global = clone_list(init_state)
 
 function forward(model, rnn_state, x, y)
-    ------------------- forward pass -------------------
     local predictions = {} -- softmax outputs
 
-    for t=1,opt.seq_length do
+    for t = 1, model.seq_length do
         model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
 
         local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
+
         rnn_state[t] = {}
-        for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
+        for i = 1, #init_state do 
+          table.insert(rnn_state[t], lst[i]) 
+        end -- extract the state, without output
+
         predictions[t] = lst[#lst] -- last element is the prediction
     end
 
     return predictions
 end
- 
 
-function feval(x)
-    if x ~= params then
-        params:copy(x)
-    end
-    grad_params:zero()
-
-    ------------------ get minibatch -------------------
-    local x, y = loader:next_batch(1)
-    x,y = prepro(x,y)
-
-    ------------------- forward pass -------------------
-    local rnn_state = {[0] = init_state_global}
-    local predictions = forward(model, rnn_state, x, y)
-    local loss = 0
-
-    for t=1,opt.seq_length do
-        loss = loss + model.criterion[t]:forward(predictions[t], y[t])
-    end
-
-    loss = loss / opt.seq_length
-
-
-    ------------------ backward pass -------------------
+function backward(model, rnn_state, predictions, x, y)
     -- initialize gradient at time t to be zeros (there's no influence from future)
-    local drnn_state = {[opt.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
-    for t=opt.seq_length,1,-1 do
+    local drnn_state = {[model.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
+
+    for t = model.seq_length, 1, -1 do
         -- backprop through loss, and softmax/linear
-        local doutput_t =model.criterion[t]:backward(predictions[t], y[t])
+        local doutput_t = model.criterion[t]:backward(predictions[t], y[t])
         table.insert(drnn_state[t], doutput_t)
-        local dlst =model.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
+        local dlst = model.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
         drnn_state[t-1] = {}
         for k,v in pairs(dlst) do
             if k > 1 then -- k == 1 is gradient on x, which we dont need
@@ -235,10 +217,40 @@ function feval(x)
             end
         end
     end
+end
+
+function loss(model, predictions, y)
+    local loss = 0
+
+    for t = 1, model.seq_length do
+        loss = loss + model.criterion[t]:forward(predictions[t], y[t])
+    end
+
+    return loss / model.seq_length
+end
+ 
+
+function feval(x)
+    if x ~= params then
+        params:copy(x)
+    end
+    grad_params:zero()
+
+    -- get minibatch
+    local x, y = prepro(loader:next_batch(1))
+
+    -- forward pass
+    local rnn_state = {[0] = init_state_global}
+    local predictions = forward(model, rnn_state, x, y)
+    local loss = loss(model, predictions, y)
+
+    -- backward pass
+    backward(model, rnn_state, predictions, x, y)
+
     ------------------------ misc ----------------------
     -- transfer final state to initial state (BPTT)
     init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
-    -- grad_params:div(opt.seq_length) -- this line should be here but since we use rmsprop it would have no effect. Removing for efficiency
+    -- grad_params:div(opt.seq_length) -- this line should be here but since we use rmsprop it would have no effect.
     -- clip gradient element-wise
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
     return loss, grad_params
