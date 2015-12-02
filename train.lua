@@ -150,7 +150,7 @@ function eval(model, ds, split_index, max_batches)
 
      ds:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
     local loss = 0
-    local rnn_state = {[0] = init_state}
+    local rnn_state = {[0] = nn.init_state}
     
     for i = 1,n do -- iterate over batches in the split
         -- fetch a batch
@@ -161,7 +161,7 @@ function eval(model, ds, split_index, max_batches)
             model.rnn[t]:evaluate() -- for dropout proper functioning
             local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
             rnn_state[t] = {}
-            for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
+            for i=1,#nn.init_state do table.insert(rnn_state[t], lst[i]) end
             prediction = lst[#lst] 
             loss = loss +model.criterion[t]:forward(prediction, y[t])
         end
@@ -174,19 +174,18 @@ function eval(model, ds, split_index, max_batches)
     return loss
 end
 
--- the initial state of the cell/hidden states
-init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
-
--- do fwd/bwd and return loss, grad_params
-local init_state_global = clone_list(init_state)
-
 local SeqModel = { }
 SeqModel.__index = SeqModel
 
-function SeqModel.new(model)
+function SeqModel.new(model, state)
+  local init_state_global = clone_list(state)
   local o = {}
+
   setmetatable(o, SeqModel)
+
   o.model = model
+  o.init_state = state
+  o.init_state_global = init_state_global
 
   return o
 end
@@ -200,7 +199,7 @@ function SeqModel:forward(rnn_state, x, y)
         local lst = self.model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
 
         rnn_state[t] = {}
-        for i = 1, #init_state do 
+        for i = 1, #self.init_state do 
           table.insert(rnn_state[t], lst[i]) 
         end -- extract the state, without output
 
@@ -212,7 +211,7 @@ end
 
 function SeqModel:backward(rnn_state, predictions, x, y)
     -- initialize gradient at time t to be zeros (there's no influence from future)
-    local drnn_state = {[self.model.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
+    local drnn_state = {[self.model.seq_length] = clone_list(self.init_state, true)} -- true also zeros the clones
 
     for t = self.model.seq_length, 1, -1 do
         -- backprop through loss, and softmax/linear
@@ -240,8 +239,9 @@ function SeqModel:loss(predictions, y)
     return loss / self.model.seq_length
 end
  
-
-local nn = SeqModel.new(model)
+-- the initial state of the cell/hidden states
+init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
+local nn = SeqModel.new(model, init_state)
 
 function feval(x)
     if x ~= params then
@@ -253,7 +253,7 @@ function feval(x)
     local x, y = prepro(loader:next_batch(1))
 
     -- forward pass
-    local rnn_state = {[0] = init_state_global}
+    local rnn_state = {[0] = nn.init_state_global}
     local predictions = nn:forward(rnn_state, x, y)
     local loss = nn:loss(predictions, y)
 
@@ -262,7 +262,7 @@ function feval(x)
 
     ------------------------ misc ----------------------
     -- transfer final state to initial state (BPTT)
-    init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
+    nn.init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
     -- grad_params:div(opt.seq_length) -- this line should be here but since we use rmsprop it would have no effect.
     -- clip gradient element-wise
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
