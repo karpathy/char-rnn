@@ -23,11 +23,10 @@ require 'rnnnet'
 
 require 'util.OneHot'
 require 'util.misc'
+
 local CharSplitLMMinibatchLoader = require 'util.CharSplitLMMinibatchLoader'
 local model_utils = require 'util.model_utils'
-local LSTM = require 'model.LSTM'
-local GRU = require 'model.GRU'
-local RNN = require 'model.RNN'
+local SeqModel = require 'seq_model'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -103,7 +102,10 @@ if string.len(opt.init_from) > 0 then
         vocab_compatible = false
         print('checkpoint_vocab_size: ' .. checkpoint_vocab_size)
     end
-    assert(vocab_compatible, 'error, the character vocabulary for this dataset and the one in the saved checkpoint are not the same. This is trouble.')
+    assert(vocab_compatible, 'error, the character vocabulary for this dataset' ..
+      'and the one in the saved checkpoint are not the same. This is trouble.'
+    )
+
     -- overwrite model settings based on checkpoint to ensure compatibility
     print('overwriting rnn_size=' .. checkpoint.opt.rnn_size .. ', num_layers=' .. checkpoint.opt.num_layers .. ', model=' .. checkpoint.opt.model .. ' based on the checkpoint.')
     opt.rnn_size = checkpoint.opt.rnn_size
@@ -112,15 +114,7 @@ if string.len(opt.init_from) > 0 then
     do_random_init = false
 else
     print('creating an ' .. opt.model .. ' with ' .. opt.num_layers .. ' layers')
-    protos = {}
-    if opt.model == 'lstm' then
-        protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
-    elseif opt.model == 'gru' then
-        protos.rnn = GRU.gru(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
-    elseif opt.model == 'rnn' then
-        protos.rnn = RNN.rnn(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
-    end
-    protos.criterion = nn.ClassNLLCriterion()
+    protos = SeqModel.build(opt.model, vocab_size, opt.rnn_size, opt.num_layers, opt.droput)
 end
 
 -- ship the model to the GPU if desired
@@ -180,74 +174,13 @@ function eval(model, ds, split_index, max_batches)
     loss = loss / opt.seq_length / n
     return loss
 end
-
-local SeqModel = { }
-SeqModel.__index = SeqModel
-
-function SeqModel.new(model, state)
-  local init_state_global = clone_list(state)
-  local o = {}
-
-  setmetatable(o, SeqModel)
-
-  o.model = model
-  o.init_state = state
-  o.init_state_global = init_state_global
-
-  return o
-end
-
-function SeqModel:forward(rnn_state, x, y)
-    local predictions = {} -- softmax outputs
-
-    for t = 1, self.model.seq_length do
-        self.model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
-
-        local lst = self.model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
-
-        rnn_state[t] = {}
-        for i = 1, #self.init_state do 
-          table.insert(rnn_state[t], lst[i]) 
-        end -- extract the state, without output
-
-        predictions[t] = lst[#lst] -- last element is the prediction
-    end
-
-    return predictions
-end
-
-function SeqModel:backward(rnn_state, predictions, x, y)
-    -- initialize gradient at time t to be zeros (there's no influence from future)
-    local drnn_state = {[self.model.seq_length] = clone_list(self.init_state, true)} -- true also zeros the clones
-
-    for t = self.model.seq_length, 1, -1 do
-        -- backprop through loss, and softmax/linear
-        local doutput_t = self.model.criterion[t]:backward(predictions[t], y[t])
-        table.insert(drnn_state[t], doutput_t)
-        local dlst = self.model.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
-        drnn_state[t-1] = {}
-        for k,v in pairs(dlst) do
-            if k > 1 then -- k == 1 is gradient on x, which we dont need
-                -- note we do k-1 because first item is dembeddings, and then follow the 
-                -- derivatives of the state, starting at index 2. I know...
-                drnn_state[t-1][k-1] = v
-            end
-        end
-    end
-end
-
-function SeqModel:loss(predictions, y)
-    local loss = 0
-
-    for t = 1, self.model.seq_length do
-        loss = loss + self.model.criterion[t]:forward(predictions[t], y[t])
-    end
-
-    return loss / self.model.seq_length
-end
  
 -- the initial state of the cell/hidden states
 init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
+
+
+
+
 local nn = SeqModel.new(model, init_state)
 
 function feval(x)
