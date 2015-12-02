@@ -59,7 +59,7 @@ cmd:option('-print_every',5,'how many steps/minibatches between printing out the
 cmd:option('-eval_val_every',1000,'every how many iterations should we evaluate on validation data?')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
 cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
-cmd:option('-accurate_gpu_timing',0,'set this flag to 1 to get precise timings when using GPU. Might make code bit slower but reports accurate timings.')
+cmd:option('-accurate_gpu_timing',0,'set this flag to 1 to get precise timings when using GPU. Might make code bit slower.')
 -- GPU/CPU
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
 cmd:option('-opencl',0,'use OpenCL (instead of CUDA)')
@@ -72,15 +72,7 @@ torch.manualSeed(opt.seed)
 local test_frac = math.max(0, 1 - (opt.train_frac + opt.val_frac))
 local split_sizes = {opt.train_frac, opt.val_frac, test_frac} 
 
--- initialize cunn/cutorch for training on the GPU and fall back to CPU gracefully
-if opt.gpuid >= 0 and opt.opencl == 0 then
-  initCuda(opt.gpuid, opt.seed)
-end
-
--- initialize clnn/cltorch for training on the GPU and fall back to CPU gracefully
-if opt.gpuid >= 0 and opt.opencl == 1 then
-  initOpenCl(opt.gpuid, opt.seed)
-end
+initGpu(opt.gpuid, opt.opencl, opt.seed)
 
 -- create the data loader class
 local loader = CharSplitLMMinibatchLoader.create(opt.data_dir, opt.batch_size, opt.seq_length, split_sizes)
@@ -134,27 +126,36 @@ for L=1,opt.num_layers do
 end
 
 -- ship the model to the GPU if desired
-for k,v in pairs(protos) do transferGpu(v) end
-
--- put the above things into one flattened parameters tensor
-params, grad_params = model_utils.combine_all_parameters(protos.rnn)
-
--- initialization
-if do_random_init then
-    params:uniform(-0.08, 0.08) -- small uniform numbers
+for k,v in pairs(protos) do 
+    transferGpu(v) 
 end
--- initialize the LSTM forget gates with slightly higher biases to encourage remembering in the beginning
-if opt.model == 'lstm' then
-    for layer_idx = 1, opt.num_layers do
-        for _,node in ipairs(protos.rnn.forwardnodes) do
-            if node.data.annotations.name == "i2h_" .. layer_idx then
-                print('setting forget gate biases to 1 in LSTM layer ' .. layer_idx)
-                -- the gates are, in order, i,f,o,g, so f is the 2nd block of weights
-                node.data.module.bias[{{opt.rnn_size+1, 2*opt.rnn_size}}]:fill(1.0)
-            end
-        end
-    end
+
+local function initParams(rnn, do_random_init, model, num_layers, rnn_size)
+  local params, grad_params = model_utils.combine_all_parameters(rnn)
+
+  -- initialization
+  if do_random_init then
+      params:uniform(-0.08, 0.08) -- small uniform numbers
+  end
+
+  -- initialize the LSTM forget gates with slightly higher biases to encourage remembering in the beginning
+  if model == 'lstm' then
+      for layer_idx = 1, num_layers do
+          for _,node in ipairs(protos.rnn.forwardnodes) do
+              if node.data.annotations.name == "i2h_" .. layer_idx then
+                  print('setting forget gate biases to 1 in LSTM layer ' .. layer_idx)
+                  -- the gates are, in order, i,f,o,g, so f is the 2nd block of weights
+                  node.data.module.bias[{{rnn_size+1, 2*rnn_size}}]:fill(1.0)
+              end
+          end
+      end
+  end
+
+  return params, grad_params
 end
+
+-- init rnn params 
+params, grad_params = initParams(protos.rnn, do_random_init, opt.model, opt.num_layers, opt.rnn_size)
 
 print(protos)
 
