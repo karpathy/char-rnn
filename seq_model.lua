@@ -36,8 +36,27 @@ local function buildSeq(protos, seq_length)
   return model
 end
 
+local function initState(num_layers, batch_size, rnn_size, modelType)
+  local state = {}
 
-function SeqModel.new(protos, seq_length, state)
+  for L = 1, num_layers do
+      local h_init = torch.zeros(batch_size, rnn_size)
+      h_init = transferGpu(h_init)
+
+      table.insert(state, h_init:clone())
+      if modelType == 'lstm' then
+          table.insert(state, h_init:clone())
+      end
+  end
+
+  return state
+end
+
+
+
+
+function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, modelType)
+  local state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
   local model = buildSeq(protos, seq_length)
   local init_state_global = clone_list(state)
   local o = {}
@@ -52,21 +71,23 @@ function SeqModel.new(protos, seq_length, state)
 end
 
 function SeqModel:forward(x, y)
-    self.rnn_state = {[0] = self.init_state_global}
+    local rnn_state = {[0] = self.init_state_global}
     local predictions = {} -- softmax outputs
 
     for t = 1, self.model.seq_length do
         self.model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
 
-        local lst = self.model.rnn[t]:forward{x[t], unpack(self.rnn_state[t-1])}
+        local lst = self.model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
 
-        self.rnn_state[t] = {}
+        rnn_state[t] = {}
         for i = 1, #self.init_state do 
-          table.insert(self.rnn_state[t], lst[i]) 
+          table.insert(rnn_state[t], lst[i]) 
         end -- extract the state, without output
 
         predictions[t] = lst[#lst] -- last element is the prediction
     end
+
+    self.rnn_state = rnn_state
 
     return predictions
 end

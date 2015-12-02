@@ -55,7 +55,7 @@ cmd:option('-init_from', '', 'initialize network parameters from checkpoint at t
 -- bookkeeping
 cmd:option('-seed',123,'torch manual random number generator seed')
 cmd:option('-print_every',5,'how many steps/minibatches between printing out the loss')
-cmd:option('-eval_val_every',10,'every how many iterations should we evaluate on validation data?')
+cmd:option('-eval_val_every',100,'every how many iterations should we evaluate on validation data?')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
 cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
 cmd:option('-accurate_gpu_timing',0,'set this flag to 1 to get precise timings when using GPU. Might make code bit slower.')
@@ -126,6 +126,16 @@ params, grad_params = initParams(protos.rnn, do_random_init, opt.model, opt.num_
 print('number of parameters in the model: ' .. params:nElement())
 
 
+
+local nn = SeqModel.new(
+  protos, 
+  opt.seq_length, 
+  opt.num_layers, 
+  opt.batch_size, 
+  opt.rnn_size, 
+  opt.model
+)
+
 -- preprocessing helper function
 function prepro(x,y)
     -- swap the axes for faster indexing
@@ -134,11 +144,6 @@ function prepro(x,y)
 
     return x,y
 end
-
-local nn = SeqModel.new(
-  protos, opt.seq_length, 
-  initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
-)
 
 function feval(x)
     if x ~= params then

@@ -24,20 +24,4 @@ function initParams(rnn, do_random_init, model, num_layers, rnn_size)
   return params, grad_params
 end
 
-function initState(num_layers, batch_size, rnn_size, model)
-  local state = {}
-
-  for L = 1, num_layers do
-      local h_init = torch.zeros(batch_size, rnn_size)
-      h_init = transferGpu(h_init)
-
-      table.insert(state, h_init:clone())
-      if model == 'lstm' then
-          table.insert(state, h_init:clone())
-      end
-  end
-
-  return state
-end
-
 
