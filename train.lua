@@ -19,6 +19,7 @@ require 'nngraph'
 require 'optim'
 require 'lfs'
 require 'util/gpu'
+require 'rnnnet'
 
 require 'util.OneHot'
 require 'util.misc'
@@ -130,41 +131,15 @@ for k,v in pairs(protos) do
     transferGpu(v) 
 end
 
-local function initParams(rnn, do_random_init, model, num_layers, rnn_size)
-  local params, grad_params = model_utils.combine_all_parameters(rnn)
-
-  -- initialization
-  if do_random_init then
-      params:uniform(-0.08, 0.08) -- small uniform numbers
-  end
-
-  -- initialize the LSTM forget gates with slightly higher biases to encourage remembering in the beginning
-  if model == 'lstm' then
-      for layer_idx = 1, num_layers do
-          for _,node in ipairs(protos.rnn.forwardnodes) do
-              if node.data.annotations.name == "i2h_" .. layer_idx then
-                  print('setting forget gate biases to 1 in LSTM layer ' .. layer_idx)
-                  -- the gates are, in order, i,f,o,g, so f is the 2nd block of weights
-                  node.data.module.bias[{{rnn_size+1, 2*rnn_size}}]:fill(1.0)
-              end
-          end
-      end
-  end
-
-  return params, grad_params
-end
-
 -- init rnn params 
 params, grad_params = initParams(protos.rnn, do_random_init, opt.model, opt.num_layers, opt.rnn_size)
-
-print(protos)
-
 print('number of parameters in the model: ' .. params:nElement())
+
 -- make a bunch of clones after flattening, as that reallocates memory
-clones = {}
-for name,proto in pairs(protos) do
+model = {}
+for name, proto in pairs(protos) do
     print('cloning ' .. name)
-    clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
+    model[name] = model_utils.clone_many_times(proto, opt.seq_length)
 end
 
 -- preprocessing helper function
@@ -192,12 +167,12 @@ function eval_split(split_index, max_batches)
         x,y = prepro(x,y)
         -- forward pass
         for t=1,opt.seq_length do
-            clones.rnn[t]:evaluate() -- for dropout proper functioning
-            local lst = clones.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
+            model.rnn[t]:evaluate() -- for dropout proper functioning
+            local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
             rnn_state[t] = {}
             for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
             prediction = lst[#lst] 
-            loss = loss + clones.criterion[t]:forward(prediction, y[t])
+            loss = loss +model.criterion[t]:forward(prediction, y[t])
         end
         -- carry over lstm state
         rnn_state[0] = rnn_state[#rnn_state]
@@ -224,12 +199,12 @@ function feval(x)
     local predictions = {}           -- softmax outputs
     local loss = 0
     for t=1,opt.seq_length do
-        clones.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
-        local lst = clones.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
+        model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
+        local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
         rnn_state[t] = {}
         for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
         predictions[t] = lst[#lst] -- last element is the prediction
-        loss = loss + clones.criterion[t]:forward(predictions[t], y[t])
+        loss = loss +model.criterion[t]:forward(predictions[t], y[t])
     end
     loss = loss / opt.seq_length
     ------------------ backward pass -------------------
@@ -237,9 +212,9 @@ function feval(x)
     local drnn_state = {[opt.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
     for t=opt.seq_length,1,-1 do
         -- backprop through loss, and softmax/linear
-        local doutput_t = clones.criterion[t]:backward(predictions[t], y[t])
+        local doutput_t =model.criterion[t]:backward(predictions[t], y[t])
         table.insert(drnn_state[t], doutput_t)
-        local dlst = clones.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
+        local dlst =model.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
         drnn_state[t-1] = {}
         for k,v in pairs(dlst) do
             if k > 1 then -- k == 1 is gradient on x, which we dont need
@@ -320,7 +295,7 @@ for i = 1, iterations do
 
     -- handle early stopping if things are going really bad
     if loss[1] ~= loss[1] then
-        print('loss is NaN.  This usually indicates a bug.  Please check the issues page for existing issues, or create a new issue, if none exist.  Ideally, please state: your operating system, 32-bit/64-bit, your blas version, cpu/cuda/cl?')
+        print('loss is NaN.  This usually indicates a bug.')
         break -- halt
     end
     if loss0 == nil then loss0 = loss[1] end
@@ -329,5 +304,3 @@ for i = 1, iterations do
         break -- halt
     end
 end
-
-

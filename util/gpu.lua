@@ -1,6 +1,18 @@
 local l_gpuid = -1
 local l_opencl = false
 
+function initGpu(gpuid, opencl, seed)
+  -- initialize cunn/cutorch for training on the GPU and fall back to CPU gracefully
+  if gpuid >= 0 and opencl == 0 then
+    initCuda(gpuid, seed)
+  end
+
+  -- initialize clnn/cltorch for training on the GPU and fall back to CPU gracefully
+  if gpuid >= 0 and opencl == 1 then
+    initOpenCl(gpuid, seed)
+  end
+end
+
 function initCuda(gpuid, seed)
     local ok, cunn = pcall(require, 'cunn')
     local ok2, cutorch = pcall(require, 'cutorch')
