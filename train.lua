@@ -169,10 +169,16 @@ end
 -- start optimization here
 train_losses = {}
 val_losses = {}
-local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
+
+local optim_state = {
+  learningRate = opt.learning_rate, 
+  alpha = opt.decay_rate
+}
+
 local iterations = opt.max_epochs * loader.ntrain
 local iterations_per_epoch = loader.ntrain
 local loss0 = nil
+
 for i = 1, iterations do
     local epoch = i / loader.ntrain
 
