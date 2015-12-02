@@ -135,11 +135,9 @@ function prepro(x,y)
     return x,y
 end
 
-local model = SeqModel.buildSeq(protos, opt.seq_length)
- 
--- the initial state of the cell/hidden states
 local nn = SeqModel.new(
-  model, initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
+  SeqModel.buildSeq(protos, opt.seq_length),
+  initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
 )
 
 function feval(x)
@@ -205,7 +203,7 @@ for i = 1, iterations do
     -- every now and then or on last iteration
     if i % opt.eval_val_every == 0 or i == iterations then
         -- evaluate loss on validation data
-        local val_loss = eval(model, loader, 2) -- 2 = validation
+        local val_loss = nn:eval(loader, 2) -- 2 = validation
         val_losses[i] = val_loss
 
         local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)

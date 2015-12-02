@@ -112,7 +112,7 @@ function SeqModel:eval(ds, split_index, max_batches)
 
      ds:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
     local loss = 0
-    local rnn_state = {[0] = nn.init_state}
+    local rnn_state = {[0] = self.init_state}
     
     for i = 1,n do -- iterate over batches in the split
         -- fetch a batch
@@ -123,7 +123,7 @@ function SeqModel:eval(ds, split_index, max_batches)
             self.model.rnn[t]:evaluate() -- for dropout proper functioning
             local lst = self.model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
             rnn_state[t] = {}
-            for i=1,#nn.init_state do table.insert(rnn_state[t], lst[i]) end
+            for i = 1, #self.init_state do table.insert(rnn_state[t], lst[i]) end
             prediction = lst[#lst] 
             loss = loss + self.model.criterion[t]:forward(prediction, y[t])
         end
