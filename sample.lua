@@ -16,6 +16,7 @@ require 'lfs'
 
 require 'util.OneHot'
 require 'util.misc'
+require 'util.gpu'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -43,40 +44,7 @@ function gprint(str)
     if opt.verbose == 1 then print(str) end
 end
 
--- check that cunn/cutorch are installed if user wants to use the GPU
-if opt.gpuid >= 0 and opt.opencl == 0 then
-    local ok, cunn = pcall(require, 'cunn')
-    local ok2, cutorch = pcall(require, 'cutorch')
-    if not ok then gprint('package cunn not found!') end
-    if not ok2 then gprint('package cutorch not found!') end
-    if ok and ok2 then
-        gprint('using CUDA on GPU ' .. opt.gpuid .. '...')
-        gprint('Make sure that your saved checkpoint was also trained with GPU. If it was trained with CPU use -gpuid -1 for sampling as well')
-        cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
-        cutorch.manualSeed(opt.seed)
-    else
-        gprint('Falling back on CPU mode')
-        opt.gpuid = -1 -- overwrite user setting
-    end
-end
-
--- check that clnn/cltorch are installed if user wants to use OpenCL
-if opt.gpuid >= 0 and opt.opencl == 1 then
-    local ok, cunn = pcall(require, 'clnn')
-    local ok2, cutorch = pcall(require, 'cltorch')
-    if not ok then print('package clnn not found!') end
-    if not ok2 then print('package cltorch not found!') end
-    if ok and ok2 then
-        gprint('using OpenCL on GPU ' .. opt.gpuid .. '...')
-        gprint('Make sure that your saved checkpoint was also trained with GPU. If it was trained with CPU use -gpuid -1 for sampling as well')
-        cltorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
-        torch.manualSeed(opt.seed)
-    else
-        gprint('Falling back on CPU mode')
-        opt.gpuid = -1 -- overwrite user setting
-    end
-end
-
+initGpu(opt.gpuid, opt.opencl, opt.seed)
 torch.manualSeed(opt.seed)
 
 -- load the model checkpoint
@@ -98,9 +66,7 @@ local current_state
 current_state = {}
 for L = 1,checkpoint.num_layers do
     -- c and h for all layers
-    local h_init = torch.zeros(1, checkpoint.rnn_size):double()
-    if opt.gpuid >= 0 and opt.opencl == 0 then h_init = h_init:cuda() end
-    if opt.gpuid >= 0 and opt.opencl == 1 then h_init = h_init:cl() end
+    local h_init = transferGpu(torch.zeros(1, checkpoint.rnn_size):double())
     table.insert(current_state, h_init:clone())
     if checkpoint.model_type == 'lstm' then
         table.insert(current_state, h_init:clone())
@@ -114,10 +80,9 @@ if string.len(seed_text) > 0 then
     gprint('seeding with ' .. seed_text)
     gprint('--------------------------')
     for c in seed_text:gmatch'.' do
-        prev_char = torch.Tensor{vocab[c]}
+        prev_char = transferGpu(torch.Tensor{vocab[c]})
         io.write(ivocab[prev_char[1]])
-        if opt.gpuid >= 0 and opt.opencl == 0 then prev_char = prev_char:cuda() end
-        if opt.gpuid >= 0 and opt.opencl == 1 then prev_char = prev_char:cl() end
+        
         local lst = protos.rnn:forward{prev_char, unpack(current_state)}
         -- lst is a list of [state1,state2,..stateN,output]. We want everything but last piece
         current_state = {}
@@ -128,9 +93,7 @@ else
     -- fill with uniform probabilities over characters (? hmm)
     gprint('missing seed text, using uniform probability over first character')
     gprint('--------------------------')
-    prediction = torch.Tensor(1, #ivocab):fill(1)/(#ivocab)
-    if opt.gpuid >= 0 and opt.opencl == 0 then prediction = prediction:cuda() end
-    if opt.gpuid >= 0 and opt.opencl == 1 then prediction = prediction:cl() end
+    prediction = transferGpu(torch.Tensor(1, #ivocab):fill(1)/(#ivocab))
 end
 
 -- start sampling/argmaxing
