@@ -25,7 +25,6 @@ require 'util.OneHot'
 require 'util.misc'
 
 local CharSplitLMMinibatchLoader = require 'util.CharSplitLMMinibatchLoader'
-local model_utils = require 'util.model_utils'
 local SeqModel = require 'seq_model'
 
 cmd = torch.CmdLine()
@@ -126,13 +125,6 @@ end
 params, grad_params = initParams(protos.rnn, do_random_init, opt.model, opt.num_layers, opt.rnn_size)
 print('number of parameters in the model: ' .. params:nElement())
 
--- make a bunch of clones after flattening, as that reallocates memory
-model = {}
-for name, proto in pairs(protos) do
-    print('cloning ' .. name)
-    model[name] = model_utils.clone_many_times(proto, opt.seq_length)
-end
-model.seq_length = opt.seq_length
 
 -- preprocessing helper function
 function prepro(x,y)
@@ -143,6 +135,7 @@ function prepro(x,y)
     return x,y
 end
 
+local model = SeqModel.buildSeq(protos, opt.seq_length)
  
 -- the initial state of the cell/hidden states
 local nn = SeqModel.new(

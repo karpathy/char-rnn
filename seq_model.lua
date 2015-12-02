@@ -1,3 +1,5 @@
+local model_utils = require 'util.model_utils'
+
 local SeqModel = { }
 SeqModel.__index = SeqModel
 
@@ -18,6 +20,21 @@ function SeqModel.build(modelType, vocab_size, rnn_size, num_layers, dropout)
     protos.criterion = nn.ClassNLLCriterion()
 
     return protos
+end
+
+function SeqModel.buildSeq(protos, seq_length)
+  -- make a bunch of clones after flattening, as that reallocates memory
+  local model = {}
+
+  for name, proto in pairs(protos) do
+      print('cloning ' .. name)
+      model[name] = model_utils.clone_many_times(proto, seq_length)
+  end
+
+  model.seq_length = seq_length
+
+  return model
+
 end
 
 
