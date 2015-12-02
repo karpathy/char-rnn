@@ -52,10 +52,35 @@ local function initState(num_layers, batch_size, rnn_size, modelType)
   return state
 end
 
+local function initParams(rnn, do_random_init, model, num_layers, rnn_size)
+  local params, grad_params = model_utils.combine_all_parameters(rnn)
+
+  -- initialization
+  if do_random_init then
+      params:uniform(-0.08, 0.08) -- small uniform numbers
+  end
+
+  -- initialize the LSTM forget gates with slightly higher biases to encourage remembering in the beginning
+  if model == 'lstm' then
+      for layer_idx = 1, num_layers do
+          for _,node in ipairs(protos.rnn.forwardnodes) do
+              if node.data.annotations.name == "i2h_" .. layer_idx then
+                  print('setting forget gate biases to 1 in LSTM layer ' .. layer_idx)
+                  -- the gates are, in order, i,f,o,g, so f is the 2nd block of weights
+                  node.data.module.bias[{{rnn_size+1, 2*rnn_size}}]:fill(1.0)
+              end
+          end
+      end
+  end
+
+  return params, grad_params
+end
 
 
 
 function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, modelType)
+  local params, grad_params = initParams(protos.rnn, do_random_init, opt.model, opt.num_layers, opt.rnn_size)
+
   local state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
   local model = buildSeq(protos, seq_length)
   local init_state_global = clone_list(state)
@@ -66,6 +91,8 @@ function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, mode
   o.model = model
   o.init_state = state
   o.init_state_global = init_state_global
+  o.params = params
+  o.grad_params = grad_params
 
   return o
 end

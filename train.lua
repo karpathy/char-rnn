@@ -19,7 +19,6 @@ require 'nngraph'
 require 'optim'
 require 'lfs'
 require 'util/gpu'
-require 'rnnnet'
 
 require 'util.OneHot'
 require 'util.misc'
@@ -122,10 +121,6 @@ for k,v in pairs(protos) do
 end
 
 -- init rnn params 
-params, grad_params = initParams(protos.rnn, do_random_init, opt.model, opt.num_layers, opt.rnn_size)
-print('number of parameters in the model: ' .. params:nElement())
-
-
 
 local nn = SeqModel.new(
   protos, 
@@ -135,6 +130,8 @@ local nn = SeqModel.new(
   opt.rnn_size, 
   opt.model
 )
+
+print('number of parameters in the model: ' .. nn.params:nElement())
 
 -- preprocessing helper function
 function prepro(x,y)
@@ -146,10 +143,10 @@ function prepro(x,y)
 end
 
 function feval(x)
-    if x ~= params then
-        params:copy(x)
+    if x ~= nn.params then
+        nn.params:copy(x)
     end
-    grad_params:zero()
+    nn.grad_params:zero()
 
     -- get minibatch
     local x, y = prepro(loader:next_batch(1))
@@ -164,9 +161,9 @@ function feval(x)
     ------------------------ misc ----------------------
     -- grad_params:div(opt.seq_length) -- this line should be here but since we use rmsprop it would have no effect.
     -- clip gradient element-wise
-    grad_params:clamp(-opt.grad_clip, opt.grad_clip)
+    nn.grad_params:clamp(-opt.grad_clip, opt.grad_clip)
 
-    return loss, grad_params
+    return loss, nn.grad_params
 end
 
 -- start optimization here
@@ -180,7 +177,7 @@ for i = 1, iterations do
     local epoch = i / loader.ntrain
 
     local timer = torch.Timer()
-    local _, loss = optim.rmsprop(feval, params, optim_state)
+    local _, loss = optim.rmsprop(feval, nn.params, optim_state)
 
     if opt.accurate_gpu_timing == 1 and opt.gpuid >= 0 then
         --[[
@@ -226,7 +223,7 @@ for i = 1, iterations do
     end
 
     if i % opt.print_every == 0 then
-        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.4fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
+        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.4fs", i, iterations, epoch, train_loss, nn.grad_params:norm() / nn.params:norm(), time))
     end
    
     if i % 10 == 0 then collectgarbage() end
