@@ -34,17 +34,18 @@ function SeqModel.new(model, state)
   return o
 end
 
-function SeqModel:forward(rnn_state, x, y)
+function SeqModel:forward(x, y)
+    self.rnn_state = {[0] = self.init_state_global}
     local predictions = {} -- softmax outputs
 
     for t = 1, self.model.seq_length do
         self.model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
 
-        local lst = self.model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
+        local lst = self.model.rnn[t]:forward{x[t], unpack(self.rnn_state[t-1])}
 
-        rnn_state[t] = {}
+        self.rnn_state[t] = {}
         for i = 1, #self.init_state do 
-          table.insert(rnn_state[t], lst[i]) 
+          table.insert(self.rnn_state[t], lst[i]) 
         end -- extract the state, without output
 
         predictions[t] = lst[#lst] -- last element is the prediction
@@ -53,7 +54,7 @@ function SeqModel:forward(rnn_state, x, y)
     return predictions
 end
 
-function SeqModel:backward(rnn_state, predictions, x, y)
+function SeqModel:backward(predictions, x, y)
     -- initialize gradient at time t to be zeros (there's no influence from future)
     local drnn_state = {[self.model.seq_length] = clone_list(self.init_state, true)} -- true also zeros the clones
 
@@ -61,7 +62,7 @@ function SeqModel:backward(rnn_state, predictions, x, y)
         -- backprop through loss, and softmax/linear
         local doutput_t = self.model.criterion[t]:backward(predictions[t], y[t])
         table.insert(drnn_state[t], doutput_t)
-        local dlst = self.model.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
+        local dlst = self.model.rnn[t]:backward({x[t], unpack(self.rnn_state[t-1])}, drnn_state[t])
         drnn_state[t-1] = {}
         for k,v in pairs(dlst) do
             if k > 1 then -- k == 1 is gradient on x, which we dont need
@@ -71,6 +72,9 @@ function SeqModel:backward(rnn_state, predictions, x, y)
             end
         end
     end
+
+    -- transfer final state to initial state (BPTT)
+    self.init_state_global = self.rnn_state[#self.rnn_state] -- NOTE: I don't think this needs to be a clone, right?
 end
 
 function SeqModel:loss(predictions, y)

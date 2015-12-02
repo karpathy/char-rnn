@@ -145,12 +145,9 @@ end
 
  
 -- the initial state of the cell/hidden states
-init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
-
-
-
-
-local nn = SeqModel.new(model, init_state)
+local nn = SeqModel.new(
+  model, initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
+)
 
 function feval(x)
     if x ~= params then
@@ -162,16 +159,13 @@ function feval(x)
     local x, y = prepro(loader:next_batch(1))
 
     -- forward pass
-    local rnn_state = {[0] = nn.init_state_global}
-    local predictions = nn:forward(rnn_state, x, y)
+    local predictions = nn:forward(x, y)
     local loss = nn:loss(predictions, y)
 
     -- backward pass
-    nn:backward(rnn_state, predictions, x, y)
+    nn:backward(predictions, x, y)
 
     ------------------------ misc ----------------------
-    -- transfer final state to initial state (BPTT)
-    nn.init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
     -- grad_params:div(opt.seq_length) -- this line should be here but since we use rmsprop it would have no effect.
     -- clip gradient element-wise
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
