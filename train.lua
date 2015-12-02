@@ -18,6 +18,7 @@ require 'nn'
 require 'nngraph'
 require 'optim'
 require 'lfs'
+require 'util/gpu'
 
 require 'util.OneHot'
 require 'util.misc'
@@ -54,7 +55,7 @@ cmd:option('-val_frac',0.05,'fraction of data that goes into validation set')
 cmd:option('-init_from', '', 'initialize network parameters from checkpoint at this path')
 -- bookkeeping
 cmd:option('-seed',123,'torch manual random number generator seed')
-cmd:option('-print_every',1,'how many steps/minibatches between printing out the loss')
+cmd:option('-print_every',5,'how many steps/minibatches between printing out the loss')
 cmd:option('-eval_val_every',1000,'every how many iterations should we evaluate on validation data?')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
 cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
@@ -73,38 +74,12 @@ local split_sizes = {opt.train_frac, opt.val_frac, test_frac}
 
 -- initialize cunn/cutorch for training on the GPU and fall back to CPU gracefully
 if opt.gpuid >= 0 and opt.opencl == 0 then
-    local ok, cunn = pcall(require, 'cunn')
-    local ok2, cutorch = pcall(require, 'cutorch')
-    if not ok then print('package cunn not found!') end
-    if not ok2 then print('package cutorch not found!') end
-    if ok and ok2 then
-        print('using CUDA on GPU ' .. opt.gpuid .. '...')
-        cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
-        cutorch.manualSeed(opt.seed)
-    else
-        print('If cutorch and cunn are installed, your CUDA toolkit may be improperly configured.')
-        print('Check your CUDA toolkit installation, rebuild cutorch and cunn, and try again.')
-        print('Falling back on CPU mode')
-        opt.gpuid = -1 -- overwrite user setting
-    end
+  initCuda(opt.gpuid, opt.seed)
 end
 
 -- initialize clnn/cltorch for training on the GPU and fall back to CPU gracefully
 if opt.gpuid >= 0 and opt.opencl == 1 then
-    local ok, cunn = pcall(require, 'clnn')
-    local ok2, cutorch = pcall(require, 'cltorch')
-    if not ok then print('package clnn not found!') end
-    if not ok2 then print('package cltorch not found!') end
-    if ok and ok2 then
-        print('using OpenCL on GPU ' .. opt.gpuid .. '...')
-        cltorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
-        torch.manualSeed(opt.seed)
-    else
-        print('If cltorch and clnn are installed, your OpenCL driver may be improperly configured.')
-        print('Check your OpenCL driver installation, check output of clinfo command, and try again.')
-        print('Falling back on CPU mode')
-        opt.gpuid = -1 -- overwrite user setting
-    end
+  initOpenCl(opt.gpuid, opt.seed)
 end
 
 -- create the data loader class
@@ -151,8 +126,7 @@ end
 init_state = {}
 for L=1,opt.num_layers do
     local h_init = torch.zeros(opt.batch_size, opt.rnn_size)
-    if opt.gpuid >=0 and opt.opencl == 0 then h_init = h_init:cuda() end
-    if opt.gpuid >=0 and opt.opencl == 1 then h_init = h_init:cl() end
+    h_init = transferGpu(h_init)
     table.insert(init_state, h_init:clone())
     if opt.model == 'lstm' then
         table.insert(init_state, h_init:clone())
@@ -160,12 +134,7 @@ for L=1,opt.num_layers do
 end
 
 -- ship the model to the GPU if desired
-if opt.gpuid >= 0 and opt.opencl == 0 then
-    for k,v in pairs(protos) do v:cuda() end
-end
-if opt.gpuid >= 0 and opt.opencl == 1 then
-    for k,v in pairs(protos) do v:cl() end
-end
+for k,v in pairs(protos) do transferGpu(v) end
 
 -- put the above things into one flattened parameters tensor
 params, grad_params = model_utils.combine_all_parameters(protos.rnn)
@@ -187,6 +156,8 @@ if opt.model == 'lstm' then
     end
 end
 
+print(protos)
+
 print('number of parameters in the model: ' .. params:nElement())
 -- make a bunch of clones after flattening, as that reallocates memory
 clones = {}
@@ -197,17 +168,10 @@ end
 
 -- preprocessing helper function
 function prepro(x,y)
-    x = x:transpose(1,2):contiguous() -- swap the axes for faster indexing
-    y = y:transpose(1,2):contiguous()
-    if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
-        -- have to convert to float because integers can't be cuda()'d
-        x = x:float():cuda()
-        y = y:float():cuda()
-    end
-    if opt.gpuid >= 0 and opt.opencl == 1 then -- ship the input arrays to GPU
-        x = x:cl()
-        y = y:cl()
-    end
+    -- swap the axes for faster indexing
+    x = transferGpu(x:transpose(1,2):contiguous()) 
+    y = transferGpu(y:transpose(1,2):contiguous())
+
     return x,y
 end
 
