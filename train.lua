@@ -119,8 +119,6 @@ end
 -- the initial state of the cell/hidden states
 init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
 
-
-
 -- ship the model to the GPU if desired
 for k,v in pairs(protos) do 
     transferGpu(v) 
@@ -181,21 +179,20 @@ end
 -- do fwd/bwd and return loss, grad_params
 local init_state_global = clone_list(init_state)
 
-
-function forward()
+function forward(model, rnn_state, x, y)
     ------------------- forward pass -------------------
-    local rnn_state = {[0] = init_state_global}
-    local predictions = {}           -- softmax outputs
-    local loss = 0
+    local predictions = {} -- softmax outputs
+
     for t=1,opt.seq_length do
         model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
+
         local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
         rnn_state[t] = {}
         for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
         predictions[t] = lst[#lst] -- last element is the prediction
-        loss = loss +model.criterion[t]:forward(predictions[t], y[t])
     end
-    loss = loss / opt.seq_length
+
+    return predictions
 end
  
 
@@ -211,17 +208,16 @@ function feval(x)
 
     ------------------- forward pass -------------------
     local rnn_state = {[0] = init_state_global}
-    local predictions = {}           -- softmax outputs
+    local predictions = forward(model, rnn_state, x, y)
     local loss = 0
+
     for t=1,opt.seq_length do
-        model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
-        local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
-        rnn_state[t] = {}
-        for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
-        predictions[t] = lst[#lst] -- last element is the prediction
-        loss = loss +model.criterion[t]:forward(predictions[t], y[t])
+        loss = loss + model.criterion[t]:forward(predictions[t], y[t])
     end
+
     loss = loss / opt.seq_length
+
+
     ------------------ backward pass -------------------
     -- initialize gradient at time t to be zeros (there's no influence from future)
     local drnn_state = {[opt.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
