@@ -116,9 +116,6 @@ else
     protos.criterion = nn.ClassNLLCriterion()
 end
 
--- the initial state of the cell/hidden states
-init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
-
 -- ship the model to the GPU if desired
 for k,v in pairs(protos) do 
     transferGpu(v) 
@@ -146,7 +143,7 @@ function prepro(x,y)
 end
 
 -- evaluate the loss over an entire split
-function eval_split(ds, split_index, max_batches)
+function eval(model, ds, split_index, max_batches)
     print('evaluating loss over split index ' .. split_index)
     local n = ds.split_sizes[split_index]
     if max_batches ~= nil then n = math.min(max_batches, n) end
@@ -177,16 +174,30 @@ function eval_split(ds, split_index, max_batches)
     return loss
 end
 
+-- the initial state of the cell/hidden states
+init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
+
 -- do fwd/bwd and return loss, grad_params
 local init_state_global = clone_list(init_state)
 
-function forward(model, rnn_state, x, y)
+local SeqModel = { }
+SeqModel.__index = SeqModel
+
+function SeqModel.new(model)
+  local o = {}
+  setmetatable(o, SeqModel)
+  o.model = model
+
+  return o
+end
+
+function SeqModel:forward(rnn_state, x, y)
     local predictions = {} -- softmax outputs
 
-    for t = 1, model.seq_length do
-        model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
+    for t = 1, self.model.seq_length do
+        self.model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
 
-        local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
+        local lst = self.model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
 
         rnn_state[t] = {}
         for i = 1, #init_state do 
@@ -199,15 +210,15 @@ function forward(model, rnn_state, x, y)
     return predictions
 end
 
-function backward(model, rnn_state, predictions, x, y)
+function SeqModel:backward(rnn_state, predictions, x, y)
     -- initialize gradient at time t to be zeros (there's no influence from future)
-    local drnn_state = {[model.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
+    local drnn_state = {[self.model.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
 
-    for t = model.seq_length, 1, -1 do
+    for t = self.model.seq_length, 1, -1 do
         -- backprop through loss, and softmax/linear
-        local doutput_t = model.criterion[t]:backward(predictions[t], y[t])
+        local doutput_t = self.model.criterion[t]:backward(predictions[t], y[t])
         table.insert(drnn_state[t], doutput_t)
-        local dlst = model.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
+        local dlst = self.model.rnn[t]:backward({x[t], unpack(rnn_state[t-1])}, drnn_state[t])
         drnn_state[t-1] = {}
         for k,v in pairs(dlst) do
             if k > 1 then -- k == 1 is gradient on x, which we dont need
@@ -219,16 +230,18 @@ function backward(model, rnn_state, predictions, x, y)
     end
 end
 
-function loss(model, predictions, y)
+function SeqModel:loss(predictions, y)
     local loss = 0
 
-    for t = 1, model.seq_length do
-        loss = loss + model.criterion[t]:forward(predictions[t], y[t])
+    for t = 1, self.model.seq_length do
+        loss = loss + self.model.criterion[t]:forward(predictions[t], y[t])
     end
 
-    return loss / model.seq_length
+    return loss / self.model.seq_length
 end
  
+
+local nn = SeqModel.new(model)
 
 function feval(x)
     if x ~= params then
@@ -241,11 +254,11 @@ function feval(x)
 
     -- forward pass
     local rnn_state = {[0] = init_state_global}
-    local predictions = forward(model, rnn_state, x, y)
-    local loss = loss(model, predictions, y)
+    local predictions = nn:forward(rnn_state, x, y)
+    local loss = nn:loss(predictions, y)
 
     -- backward pass
-    backward(model, rnn_state, predictions, x, y)
+    nn:backward(rnn_state, predictions, x, y)
 
     ------------------------ misc ----------------------
     -- transfer final state to initial state (BPTT)
@@ -253,6 +266,7 @@ function feval(x)
     -- grad_params:div(opt.seq_length) -- this line should be here but since we use rmsprop it would have no effect.
     -- clip gradient element-wise
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
+
     return loss, grad_params
 end
 
@@ -295,7 +309,7 @@ for i = 1, iterations do
     -- every now and then or on last iteration
     if i % opt.eval_val_every == 0 or i == iterations then
         -- evaluate loss on validation data
-        local val_loss = eval_split(loader, 2) -- 2 = validation
+        local val_loss = eval(model, loader, 2) -- 2 = validation
         val_losses[i] = val_loss
 
         local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)
