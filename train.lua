@@ -128,7 +128,8 @@ local nn = SeqModel.new(
   opt.num_layers, 
   opt.batch_size, 
   opt.rnn_size, 
-  opt.model
+  opt.model,
+  vocab
 )
 
 print('number of parameters in the model: ' .. nn.params:nElement())
@@ -218,16 +219,7 @@ for i = 1, iterations do
 
         local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)
         print('saving checkpoint to ' .. savefile)
-        local checkpoint = {}
-        checkpoint.protos = protos
-        checkpoint.opt = opt
-        checkpoint.train_losses = train_losses
-        checkpoint.val_loss = val_loss
-        checkpoint.val_losses = val_losses
-        checkpoint.i = i
-        checkpoint.epoch = epoch
-        checkpoint.vocab = loader.vocab_mapping
-        torch.save(savefile, checkpoint)
+        nn:save(savefile)
     end
 
     if i % opt.print_every == 0 then

@@ -78,7 +78,7 @@ end
 
 
 
-function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, modelType)
+function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, modelType, vocab)
   -- init params
   local params, grad_params = initParams(protos.rnn, do_random_init, modelType, num_layers, rnn_size)
 
@@ -98,6 +98,12 @@ function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, mode
   o.init_state_global = init_state_global
   o.params = params
   o.grad_params = grad_params
+
+  o.protos = protos
+  o.rnn_size = rnn_size
+  o.num_layers = num_layers
+  o.model_type = modelType
+  o.vocab = vocab
 
   return o
 end
@@ -175,5 +181,15 @@ function SeqModel:eval(ds, split_index)
     return loss / n
 end
 
+function SeqModel:save(fileName)
+  local checkpoint = {}
+  checkpoint.protos = self.protos
+  checkpoint.rnn_size = self.rnn_size
+  checkpoint.num_layers = self.num_layers
+  checkpoint.model_type = self.model_type
+  checkpoint.vocab = self.vocab
+
+  torch.save(fileName, checkpoint)
+end
 
 return SeqModel
