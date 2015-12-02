@@ -143,37 +143,6 @@ function prepro(x,y)
     return x,y
 end
 
--- evaluate the loss over an entire split
-function eval(model, ds, split_index, max_batches)
-    print('evaluating loss over split index ' .. split_index)
-    local n = ds.split_sizes[split_index]
-    if max_batches ~= nil then n = math.min(max_batches, n) end
-
-     ds:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
-    local loss = 0
-    local rnn_state = {[0] = nn.init_state}
-    
-    for i = 1,n do -- iterate over batches in the split
-        -- fetch a batch
-        local x, y = ds:next_batch(split_index)
-        x,y = prepro(x,y)
-        -- forward pass
-        for t=1,opt.seq_length do
-            model.rnn[t]:evaluate() -- for dropout proper functioning
-            local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
-            rnn_state[t] = {}
-            for i=1,#nn.init_state do table.insert(rnn_state[t], lst[i]) end
-            prediction = lst[#lst] 
-            loss = loss +model.criterion[t]:forward(prediction, y[t])
-        end
-        -- carry over lstm state
-        rnn_state[0] = rnn_state[#rnn_state]
-        print(i .. '/' .. n .. '...')
-    end
-
-    loss = loss / opt.seq_length / n
-    return loss
-end
  
 -- the initial state of the cell/hidden states
 init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
