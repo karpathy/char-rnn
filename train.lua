@@ -85,6 +85,7 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 
 -- define the model: prototypes for one timestep, then clone them in time
 local do_random_init = true
+
 if string.len(opt.init_from) > 0 then
     print('loading an LSTM from checkpoint ' .. opt.init_from)
     local checkpoint = torch.load(opt.init_from)
@@ -116,15 +117,9 @@ else
 end
 
 -- the initial state of the cell/hidden states
-init_state = {}
-for L=1,opt.num_layers do
-    local h_init = torch.zeros(opt.batch_size, opt.rnn_size)
-    h_init = transferGpu(h_init)
-    table.insert(init_state, h_init:clone())
-    if opt.model == 'lstm' then
-        table.insert(init_state, h_init:clone())
-    end
-end
+init_state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
+
+
 
 -- ship the model to the GPU if desired
 for k,v in pairs(protos) do 
@@ -152,18 +147,18 @@ function prepro(x,y)
 end
 
 -- evaluate the loss over an entire split
-function eval_split(split_index, max_batches)
+function eval_split(ds, split_index, max_batches)
     print('evaluating loss over split index ' .. split_index)
-    local n = loader.split_sizes[split_index]
+    local n = ds.split_sizes[split_index]
     if max_batches ~= nil then n = math.min(max_batches, n) end
 
-    loader:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
+     ds:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
     local loss = 0
     local rnn_state = {[0] = init_state}
     
     for i = 1,n do -- iterate over batches in the split
         -- fetch a batch
-        local x, y = loader:next_batch(split_index)
+        local x, y = ds:next_batch(split_index)
         x,y = prepro(x,y)
         -- forward pass
         for t=1,opt.seq_length do
@@ -185,6 +180,25 @@ end
 
 -- do fwd/bwd and return loss, grad_params
 local init_state_global = clone_list(init_state)
+
+
+function forward()
+    ------------------- forward pass -------------------
+    local rnn_state = {[0] = init_state_global}
+    local predictions = {}           -- softmax outputs
+    local loss = 0
+    for t=1,opt.seq_length do
+        model.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
+        local lst =model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
+        rnn_state[t] = {}
+        for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
+        predictions[t] = lst[#lst] -- last element is the prediction
+        loss = loss +model.criterion[t]:forward(predictions[t], y[t])
+    end
+    loss = loss / opt.seq_length
+end
+ 
+
 function feval(x)
     if x ~= params then
         params:copy(x)
@@ -194,6 +208,7 @@ function feval(x)
     ------------------ get minibatch -------------------
     local x, y = loader:next_batch(1)
     x,y = prepro(x,y)
+
     ------------------- forward pass -------------------
     local rnn_state = {[0] = init_state_global}
     local predictions = {}           -- softmax outputs
@@ -245,6 +260,7 @@ for i = 1, iterations do
 
     local timer = torch.Timer()
     local _, loss = optim.rmsprop(feval, params, optim_state)
+
     if opt.accurate_gpu_timing == 1 and opt.gpuid >= 0 then
         --[[
         Note on timing: The reported time can be off because the GPU is invoked async. If one
@@ -253,6 +269,7 @@ for i = 1, iterations do
         --]]
         cutorch.synchronize()
     end
+
     local time = timer:time().real
     
     local train_loss = loss[1] -- the loss is inside a list, pop it
@@ -270,7 +287,7 @@ for i = 1, iterations do
     -- every now and then or on last iteration
     if i % opt.eval_val_every == 0 or i == iterations then
         -- evaluate loss on validation data
-        local val_loss = eval_split(2) -- 2 = validation
+        local val_loss = eval_split(loader, 2) -- 2 = validation
         val_losses[i] = val_loss
 
         local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)
