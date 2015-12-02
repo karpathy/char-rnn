@@ -3,7 +3,7 @@ local model_utils = require 'util.model_utils'
 local SeqModel = { }
 SeqModel.__index = SeqModel
 
-function SeqModel.build(modelType, vocab_size, rnn_size, num_layers, dropout)
+function SeqModel.buildProto(modelType, vocab_size, rnn_size, num_layers, dropout)
     local protos = {}
 
     if modelType == 'lstm' then
@@ -22,8 +22,8 @@ function SeqModel.build(modelType, vocab_size, rnn_size, num_layers, dropout)
     return protos
 end
 
-function SeqModel.buildSeq(protos, seq_length)
-  -- make a bunch of clones after flattening, as that reallocates memory
+-- make a bunch of clones after flattening, as that reallocates memory
+local function buildSeq(protos, seq_length)
   local model = {}
 
   for name, proto in pairs(protos) do
@@ -34,11 +34,11 @@ function SeqModel.buildSeq(protos, seq_length)
   model.seq_length = seq_length
 
   return model
-
 end
 
 
-function SeqModel.new(model, state)
+function SeqModel.new(protos, seq_length, state)
+  local model = buildSeq(protos, seq_length)
   local init_state_global = clone_list(state)
   local o = {}
 
@@ -105,12 +105,11 @@ function SeqModel:loss(predictions, y)
 end
 
 -- evaluate the loss over an entire split
-function SeqModel:eval(ds, split_index, max_batches)
+function SeqModel:eval(ds, split_index)
     print('evaluating loss over split index ' .. split_index)
     local n = ds.split_sizes[split_index]
-    if max_batches ~= nil then n = math.min(max_batches, n) end
 
-     ds:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
+    ds:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
     local loss = 0
     local rnn_state = {[0] = self.init_state}
     
@@ -118,6 +117,7 @@ function SeqModel:eval(ds, split_index, max_batches)
         -- fetch a batch
         local x, y = ds:next_batch(split_index)
         x,y = prepro(x,y)
+
         -- forward pass
         for t=1,opt.seq_length do
             self.model.rnn[t]:evaluate() -- for dropout proper functioning

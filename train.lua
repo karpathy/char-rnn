@@ -55,7 +55,7 @@ cmd:option('-init_from', '', 'initialize network parameters from checkpoint at t
 -- bookkeeping
 cmd:option('-seed',123,'torch manual random number generator seed')
 cmd:option('-print_every',5,'how many steps/minibatches between printing out the loss')
-cmd:option('-eval_val_every',1000,'every how many iterations should we evaluate on validation data?')
+cmd:option('-eval_val_every',10,'every how many iterations should we evaluate on validation data?')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
 cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
 cmd:option('-accurate_gpu_timing',0,'set this flag to 1 to get precise timings when using GPU. Might make code bit slower.')
@@ -113,7 +113,7 @@ if string.len(opt.init_from) > 0 then
     do_random_init = false
 else
     print('creating an ' .. opt.model .. ' with ' .. opt.num_layers .. ' layers')
-    protos = SeqModel.build(opt.model, vocab_size, opt.rnn_size, opt.num_layers, opt.droput)
+    protos = SeqModel.buildProto(opt.model, vocab_size, opt.rnn_size, opt.num_layers, opt.droput)
 end
 
 -- ship the model to the GPU if desired
@@ -136,7 +136,7 @@ function prepro(x,y)
 end
 
 local nn = SeqModel.new(
-  SeqModel.buildSeq(protos, opt.seq_length),
+  protos, opt.seq_length, 
   initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
 )
 
