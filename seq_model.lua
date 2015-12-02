@@ -164,12 +164,10 @@ function SeqModel:eval(ds, split_index)
 
     ds:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
     local loss = 0
-    
-    for i = 1, n do -- iterate over batches in the split
-        -- fetch a batch
-        local x, y = ds:next_batch(split_index)
-        x,y = prepro(x,y)
 
+    -- iterate over batches in the split
+    for i = 1, n do         
+        local x, y = prepro(ds:next_batch(split_index))
         local pred = self:forward(x, y)
         loss = loss + self:loss(pred, y) 
     end
