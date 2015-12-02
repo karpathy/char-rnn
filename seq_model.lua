@@ -79,15 +79,20 @@ end
 
 
 function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, modelType)
-  local params, grad_params = initParams(protos.rnn, do_random_init, opt.model, opt.num_layers, opt.rnn_size)
+  -- init params
+  local params, grad_params = initParams(protos.rnn, do_random_init, modelType, num_layers, rnn_size)
 
-  local state = initState(opt.num_layers, opt.batch_size, opt.rnn_size, opt.model)
-  local model = buildSeq(protos, seq_length)
+  -- init state
+  local state = initState(num_layers, batch_size, rnn_size, modelType)
   local init_state_global = clone_list(state)
+
+  -- init model
+  local model = buildSeq(protos, seq_length)
+
+  -- init class
   local o = {}
 
   setmetatable(o, SeqModel)
-
   o.model = model
   o.init_state = state
   o.init_state_global = init_state_global
@@ -167,11 +172,15 @@ function SeqModel:eval(ds, split_index)
         x,y = prepro(x,y)
 
         -- forward pass
-        for t=1,opt.seq_length do
+        for t = 1, self.model.seq_length do
             self.model.rnn[t]:evaluate() -- for dropout proper functioning
             local lst = self.model.rnn[t]:forward{x[t], unpack(rnn_state[t-1])}
             rnn_state[t] = {}
-            for i = 1, #self.init_state do table.insert(rnn_state[t], lst[i]) end
+
+            for i = 1, #self.init_state do 
+              table.insert(rnn_state[t], lst[i]) 
+            end
+
             prediction = lst[#lst] 
             loss = loss + self.model.criterion[t]:forward(prediction, y[t])
         end
@@ -180,7 +189,7 @@ function SeqModel:eval(ds, split_index)
         print(i .. '/' .. n .. '...')
     end
 
-    loss = loss / opt.seq_length / n
+    loss = loss / self.model.seq_length / n
     return loss
 end
 
