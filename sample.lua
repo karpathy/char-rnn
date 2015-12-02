@@ -62,8 +62,7 @@ for c,i in pairs(vocab) do ivocab[i] = c end
 
 -- initialize the rnn state to all zeros
 gprint('creating an ' .. checkpoint.model_type .. '...')
-local current_state
-current_state = {}
+local current_state = {}
 for L = 1,checkpoint.num_layers do
     -- c and h for all layers
     local h_init = transferGpu(torch.zeros(1, checkpoint.rnn_size):double())
