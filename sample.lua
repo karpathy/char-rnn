@@ -17,6 +17,7 @@ require 'lfs'
 require 'util.OneHot'
 require 'util.misc'
 require 'util.gpu'
+SeqModel = require 'seq_model'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -65,6 +66,15 @@ gprint('creating an ' .. checkpoint.model_type .. '...')
 local current_state = initState(checkpoint.num_layers, 1, checkpoint.rnn_size, checkpoint.model_type)
 state_size = #current_state
 
+
+local nn = SeqModel.new(
+  checkpoint.protos, 1, 
+  checkpoint.num_layers, 1, 
+  checkpoint.rnn_size, 
+  checkpoint.model_type, 
+  checkpoint.vocab
+)
+
 -- do a few seeded timesteps
 local seed_text = opt.primetext
 if string.len(seed_text) > 0 then
@@ -73,12 +83,8 @@ if string.len(seed_text) > 0 then
     for c in seed_text:gmatch'.' do
         prev_char = transferGpu(torch.Tensor{vocab[c]})
         io.write(ivocab[prev_char[1]])
-        
-        local lst = protos.rnn:forward{prev_char, unpack(current_state)}
-        -- lst is a list of [state1,state2,..stateN,output]. We want everything but last piece
-        current_state = {}
-        for i=1,state_size do table.insert(current_state, lst[i]) end
-        prediction = lst[#lst] -- last element holds the log probabilities
+
+        prediction = nn:forward({prev_char})[1]
     end
 else
     -- fill with uniform probabilities over characters (? hmm)
