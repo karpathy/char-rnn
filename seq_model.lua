@@ -177,6 +177,8 @@ function SeqModel:eval(ds, split_index)
         local x, y = prepro(ds:next_batch(split_index))
         local pred = self:forward(x, y)
         loss = loss + self:loss(pred, y) 
+
+        print(i .. "/" .. n)
     end
 
     return loss / n
