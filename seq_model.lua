@@ -104,6 +104,7 @@ function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, mode
   o.num_layers = num_layers
   o.model_type = modelType
   o.vocab = vocab
+  o.batch_size = batch_size
 
   return o
 end
@@ -127,7 +128,7 @@ function SeqModel:forward(x)
 
     self.rnn_state = rnn_state
 
-    return predictions
+    return predictions, rnn_state
 end
 
 function SeqModel:backward(predictions, x, y)

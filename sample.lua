@@ -109,11 +109,10 @@ for i=1, opt.length do
         prev_char = torch.multinomial(probs:float(), 1):resize(1):float()
     end
 
-    -- forward the rnn for next character
-    local lst = protos.rnn:forward{prev_char, unpack(current_state)}
-    current_state = {}
-    for i=1,state_size do table.insert(current_state, lst[i]) end
-    prediction = lst[#lst] -- last element holds the log probabilities
+    local prediction, state = nn:forward({prev_char})
+    nn.init_state_global = state[#state]
+
+    prediction = prediction[1]
 
     io.write(ivocab[prev_char[1]])
 end
