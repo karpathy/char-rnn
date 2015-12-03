@@ -62,15 +62,7 @@ for c,i in pairs(vocab) do ivocab[i] = c end
 
 -- initialize the rnn state to all zeros
 gprint('creating an ' .. checkpoint.model_type .. '...')
-local current_state = {}
-for L = 1,checkpoint.num_layers do
-    -- c and h for all layers
-    local h_init = transferGpu(torch.zeros(1, checkpoint.rnn_size):double())
-    table.insert(current_state, h_init:clone())
-    if checkpoint.model_type == 'lstm' then
-        table.insert(current_state, h_init:clone())
-    end
-end
+local current_state = initState(checkpoint.num_layers, 1, checkpoint.rnn_size, checkpoint.model_type)
 state_size = #current_state
 
 -- do a few seeded timesteps

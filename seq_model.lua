@@ -36,12 +36,12 @@ local function buildSeq(protos, seq_length)
   return model
 end
 
-local function initState(num_layers, batch_size, rnn_size, modelType)
+-- local
+function initState(num_layers, batch_size, rnn_size, modelType)
   local state = {}
 
   for L = 1, num_layers do
-      local h_init = torch.zeros(batch_size, rnn_size)
-      h_init = transferGpu(h_init)
+      local h_init = transferGpu(torch.zeros(batch_size, rnn_size))
 
       table.insert(state, h_init:clone())
       if modelType == 'lstm' then
@@ -108,7 +108,7 @@ function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, mode
   return o
 end
 
-function SeqModel:forward(x, y)
+function SeqModel:forward(x)
     local rnn_state = {[0] = self.init_state_global}
     local predictions = {} -- softmax outputs
 

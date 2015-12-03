@@ -13,6 +13,7 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
 
   local x, input_size_L
   local outputs = {}
+
   for L = 1,n do
     -- c,h from previos timesteps
     local prev_h = inputs[L*2+1]
@@ -23,7 +24,11 @@ function LSTM.lstm(input_size, rnn_size, n, dropout)
       input_size_L = input_size
     else 
       x = outputs[(L-1)*2] 
-      if dropout > 0 then x = nn.Dropout(dropout)(x) end -- apply dropout, if any
+
+      if dropout > 0 then 
+        x = nn.Dropout(dropout)(x) 
+      end -- apply dropout, if any
+
       input_size_L = rnn_size
     end
     -- evaluate the input sums at once for efficiency
