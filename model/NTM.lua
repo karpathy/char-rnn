@@ -44,8 +44,8 @@ function NTM:__init(config)
   self.input_dim   = config.input_dim   or error('config.input_dim must be specified')
   self.output_dim  = config.output_dim  or error('config.output_dim must be specified')
   self.mem_rows    = config.mem_rows    or 20
-  self.mem_cols    = config.mem_cols    or 64
-  self.cont_dim    = config.cont_dim    or 256
+  self.mem_cols    = config.mem_cols    or 128
+  self.cont_dim    = config.cont_dim    or 128
   self.cont_layers = config.cont_layers or 1
   self.shift_range = config.shift_range or 1
   self.write_heads = config.write_heads or 1
@@ -394,14 +394,14 @@ function NTM:forward(input)
 
   local prev_outputs
   if self.depth == 1 then
-    if self.prev_output == nil then
+    --if self.prev_output == nil then
       prev_outputs = self.init_module:forward(torch.Tensor{0})
-      self.prev_output = prev_outputs
-    else
+    --  self.prev_output = prev_outputs
+    --else
       --print('use previous state')
       --print(self.prev_output[5][{{1,10}}])
-      prev_outputs = self.prev_output
-    end
+      --prev_outputs = self.prev_output
+    --end
   else
     prev_outputs = self.cells[self.depth - 1].output
   end
@@ -434,8 +434,8 @@ function NTM:backward(input, grad_output)
   if self.depth == 1 then
     --print("remember previous state")
     --print(self.prev_output[5][{{1,10}}])
-    prev_outputs = self.prev_output
-    --init_module:forward(torch.Tensor{0})
+    --prev_outputs = self.prev_output
+    prev_outputs = self.init_module:forward(torch.Tensor{0})
   else
     prev_outputs = self.cells[self.depth - 1].output
   end

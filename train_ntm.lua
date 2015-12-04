@@ -290,7 +290,7 @@ function feval(x)
 
     loss = loss / opt.seq_length
     -- maintain last state
-    protos.rnn:set_last_state()
+    --protos.rnn:set_last_state()
     ------------------ backward pass -------------------
     -- initialize gradient at time t to be zeros (there's no influence from future)
     local drnn_state = {[opt.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
