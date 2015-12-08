@@ -54,8 +54,10 @@ end
 
 function SeqModel.buildProto(vocab_size, rnn_size, num_layers, dropout)
     local protos = {}
+    -- local encoder = nn.LookupTable(vocab_size, rnn_size)
+    local encoder = OneHot(vocab_size)
 
-    protos.rnn = create_net(vocab_size, rnn_size, num_layers, dropout, OneHot(vocab_size))
+    protos.rnn = create_net(vocab_size, rnn_size, num_layers, dropout, encoder)
     protos.criterion = nn.ClassNLLCriterion()
 
     return protos
