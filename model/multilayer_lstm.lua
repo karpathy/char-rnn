@@ -40,7 +40,7 @@ function multilayer_lstm(input_size, rnn_size, num_layers, dropout, encoder)
   -- set up the decoder
   local top_h = outputs[#outputs]
   if dropout > 0 then top_h = nn.Dropout(dropout)(top_h) end
-  local h2y = nn.Linear(rnn_size, input_size)(top_h):annotate{name='decoder'}
+  local h2y = nn.Linear(rnn_size, 10000)(top_h):annotate{name='decoder'}
   local logsoft = nn.LogSoftMax()(h2y)
   table.insert(outputs, logsoft)
 
