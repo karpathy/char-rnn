@@ -3,39 +3,39 @@ local LSTM = {}
 
 lstmu = require 'model.unit'
 
-function LSTM.lstm(input_size, rnn_size, n, dropout)
+function LSTM.lstm(input_size, rnn_size, num_layers, dropout)
   dropout = dropout or 0 
 
   local inputs = {}
   table.insert(inputs, nn.Identity()()) -- x
-  for L = 1, n do
+  for L = 1, num_layers do
     table.insert(inputs, nn.Identity()()) -- prev_c[L]
     table.insert(inputs, nn.Identity()()) -- prev_h[L]
   end
 
-  local x, size
+  local x, layer_input_size
   local outputs = {}
 
-  for L = 1,n do
+  for L = 1, num_layers do
     local prev_h = inputs[L * 2 + 1]
     local prev_c = inputs[L * 2]
 
     if L == 1 then 
       x = OneHot(input_size)(inputs[1])
-      size = input_size
+      layer_input_size = input_size
     else 
       x = outputs[(L - 1) * 2] 
 
+      -- activate dropout
       if dropout > 0 then 
         x = nn.Dropout(dropout)(x) 
       end
 
-      size = rnn_size
+      layer_input_size = rnn_size
     end
-    -- evaluate the input sums at once for efficiency
 
-    next_c, next_h = lstmu(x, prev_c, prev_h, size, rnn_size, L)
-    
+    -- calculate outputs
+    next_c, next_h = lstmu(x, prev_c, prev_h, layer_input_size, rnn_size, L)
     table.insert(outputs, next_c)
     table.insert(outputs, next_h)
   end
