@@ -1,22 +1,61 @@
 local model_utils = require 'util.model_utils'
+local lstm = require 'model.lstm'
 
 local SeqModel = { }
 SeqModel.__index = SeqModel
 
-function SeqModel.buildProto(modelType, vocab_size, rnn_size, num_layers, dropout)
-    local protos = {}
+function create_net(input_size, rnn_size, num_layers, dropout, encoder)
+  dropout = dropout or 0 
 
-    if modelType == 'lstm' then
-        local LSTM = require 'model.LSTM'
-        protos.rnn = LSTM.lstm(vocab_size, rnn_size, num_layers, dropout, OneHot(vocab_size))
-    elseif modelType == 'gru' then
-        local GRU = require 'model.GRU'
-        protos.rnn = GRU.gru(vocab_size, rnn_size, num_layers, dropout)
-    elseif modelType == 'rnn' then
-        local RNN = require 'model.RNN'
-        protos.rnn = RNN.rnn(vocab_size, rnn_size, num_layers, dropout)
+  local inputs = {}
+  table.insert(inputs, nn.Identity()()) -- x
+  for L = 1, num_layers do
+    table.insert(inputs, nn.Identity()()) -- prev_c[L]
+    table.insert(inputs, nn.Identity()()) -- prev_h[L]
+  end
+
+  local x, layer_input_size
+  local outputs = {}
+
+  for L = 1, num_layers do
+    local prev_h = inputs[L * 2 + 1]
+    local prev_c = inputs[L * 2]
+
+    if L == 1 then 
+      x = encoder(inputs[1])
+      layer_input_size = input_size
+    else 
+      x = outputs[(L - 1) * 2] 
+
+      -- activate dropout
+      if dropout > 0 then 
+        x = nn.Dropout(dropout)(x) 
+      end
+
+      layer_input_size = rnn_size
     end
 
+    -- calculate outputs
+    next_c, next_h = lstm(x, prev_c, prev_h, layer_input_size, rnn_size, L)
+    table.insert(outputs, next_c)
+    table.insert(outputs, next_h)
+  end
+
+  -- set up the decoder
+  local top_h = outputs[#outputs]
+  if dropout > 0 then top_h = nn.Dropout(dropout)(top_h) end
+  local proj = nn.Linear(rnn_size, input_size)(top_h):annotate{name='decoder'}
+  local logsoft = nn.LogSoftMax()(proj)
+  table.insert(outputs, logsoft)
+
+  return nn.gModule(inputs, outputs)
+end
+
+
+function SeqModel.buildProto(vocab_size, rnn_size, num_layers, dropout)
+    local protos = {}
+
+    protos.rnn = create_net(vocab_size, rnn_size, num_layers, dropout, OneHot(vocab_size))
     protos.criterion = nn.ClassNLLCriterion()
 
     return protos

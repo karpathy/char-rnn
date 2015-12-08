@@ -112,7 +112,7 @@ if string.len(opt.init_from) > 0 then
     do_random_init = false
 else
     print('creating an ' .. opt.model .. ' with ' .. opt.num_layers .. ' layers')
-    protos = SeqModel.buildProto(opt.model, vocab_size, opt.rnn_size, opt.num_layers, opt.droput)
+    protos = SeqModel.buildProto(vocab_size, opt.rnn_size, opt.num_layers, opt.droput)
 end
 
 -- ship the model to the GPU if desired
