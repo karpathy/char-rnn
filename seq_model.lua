@@ -64,7 +64,7 @@ function SeqModel.buildProto(vocab_size, rnn_size, num_layers, dropout)
 end
 
 -- make a bunch of clones after flattening, as that reallocates memory
-local function buildSeq(protos, seq_length)
+local function buildModel(protos, seq_length)
   local model = {}
 
   for name, proto in pairs(protos) do
@@ -128,7 +128,7 @@ function SeqModel.new(protos, seq_length, num_layers, batch_size, rnn_size, mode
   local init_state_global = clone_list(state)
 
   -- init model
-  local model = buildSeq(protos, seq_length)
+  local model = buildModel(protos, seq_length)
 
   -- init class
   local o = {}
