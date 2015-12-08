@@ -3,7 +3,7 @@ local LSTM = {}
 
 lstmu = require 'model.unit'
 
-function LSTM.lstm(input_size, rnn_size, num_layers, dropout)
+function LSTM.lstm(input_size, rnn_size, num_layers, dropout, encoder)
   dropout = dropout or 0 
 
   local inputs = {}
@@ -21,7 +21,7 @@ function LSTM.lstm(input_size, rnn_size, num_layers, dropout)
     local prev_c = inputs[L * 2]
 
     if L == 1 then 
-      x = OneHot(input_size)(inputs[1])
+      x = encoder(inputs[1])
       layer_input_size = input_size
     else 
       x = outputs[(L - 1) * 2] 
@@ -51,4 +51,3 @@ function LSTM.lstm(input_size, rnn_size, num_layers, dropout)
 end
 
 return LSTM
-

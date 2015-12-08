@@ -18,3 +18,5 @@ function OneHot:updateOutput(input)
   self.output:copy(self._eye:index(1, longInput))
   return self.output
 end
+
+return OneHot

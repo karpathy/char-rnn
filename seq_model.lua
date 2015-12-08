@@ -8,7 +8,7 @@ function SeqModel.buildProto(modelType, vocab_size, rnn_size, num_layers, dropou
 
     if modelType == 'lstm' then
         local LSTM = require 'model.LSTM'
-        protos.rnn = LSTM.lstm(vocab_size, rnn_size, num_layers, dropout)
+        protos.rnn = LSTM.lstm(vocab_size, rnn_size, num_layers, dropout, OneHot(vocab_size))
     elseif modelType == 'gru' then
         local GRU = require 'model.GRU'
         protos.rnn = GRU.gru(vocab_size, rnn_size, num_layers, dropout)
