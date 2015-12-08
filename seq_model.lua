@@ -44,8 +44,8 @@ function create_net(input_size, rnn_size, num_layers, dropout, encoder)
   -- set up the decoder
   local top_h = outputs[#outputs]
   if dropout > 0 then top_h = nn.Dropout(dropout)(top_h) end
-  local proj = nn.Linear(rnn_size, input_size)(top_h):annotate{name='decoder'}
-  local logsoft = nn.LogSoftMax()(proj)
+  local h2y = nn.Linear(rnn_size, input_size)(top_h):annotate{name='decoder'}
+  local logsoft = nn.LogSoftMax()(h2y)
   table.insert(outputs, logsoft)
 
   return nn.gModule(inputs, outputs)
@@ -54,10 +54,10 @@ end
 
 function SeqModel.buildProto(vocab_size, rnn_size, num_layers, dropout)
     local protos = {}
-    -- local encoder = nn.LookupTable(vocab_size, rnn_size)
-    local encoder = OneHot(vocab_size)
+    -- local encoder, input_size = nn.LookupTable(vocab_size, rnn_size), rnn_size
+    local encoder, input_size = OneHot(vocab_size), vocab_size
 
-    protos.rnn = create_net(vocab_size, rnn_size, num_layers, dropout, encoder)
+    protos.rnn = create_net(input_size, rnn_size, num_layers, dropout, encoder)
     protos.criterion = nn.ClassNLLCriterion()
 
     return protos
