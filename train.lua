@@ -43,9 +43,9 @@ cmd:option('-learning_rate_decay',0.97,'learning rate decay')
 cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
 cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
 cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
-cmd:option('-seq_length',20,'number of timesteps to unroll for')
+cmd:option('-seq_length',60,'number of timesteps to unroll for')
 cmd:option('-batch_size',50,'number of sequences to train on in parallel')
-cmd:option('-max_epochs',25,'number of full passes through the training data')
+cmd:option('-max_epochs',1,'number of full passes through the training data')
 cmd:option('-grad_clip',5,'clip gradients at this value')
 cmd:option('-train_frac',0.999,'fraction of data that goes into train set')
 cmd:option('-val_frac',0.001,'fraction of data that goes into validation set')
@@ -121,7 +121,6 @@ for k,v in pairs(protos) do
 end
 
 -- init rnn params 
-
 local nn = SeqModel.new(
   protos, 
   opt.seq_length, 
@@ -161,6 +160,7 @@ function feval(x)
 
     ------------------------ misc ----------------------
     -- grad_params:div(opt.seq_length) -- this line should be here but since we use rmsprop it would have no effect.
+
     -- clip gradient element-wise
     nn.grad_params:clamp(-opt.grad_clip, opt.grad_clip)
 
@@ -180,7 +180,7 @@ local iterations = opt.max_epochs * loader.ntrain
 local iterations_per_epoch = loader.ntrain
 local loss0 = nil
 
-local log = io.open("learn3.log", "w")
+local log = io.open("lookup.log", "w")
 
 for i = 1, iterations do
     local epoch = i / loader.ntrain
