@@ -39,7 +39,7 @@ cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
 cmd:option('-model', 'lstm', 'lstm,gru or rnn')
 -- Training visualization
-cmd:option('-visualize', false, 'Whether to enable visualization of model training in browser')
+cmd:option('-visualize', 0, 'port to expose websocket server visualization of model training in browser. defaults to disabled.')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
@@ -108,6 +108,22 @@ if opt.gpuid >= 0 and opt.opencl == 1 then
         print('Check your OpenCL driver installation, check output of clinfo command, and try again.')
         print('Falling back on CPU mode')
         opt.gpuid = -1 -- overwrite user setting
+    end
+end
+
+if opt.visualize > 0 then
+    local ok, ok2, ok3
+    ok, copas = pcall(require, 'copas')
+    ok2, websocket = pcall(require, 'websocket')
+    ok3, json = pcall(require, 'json')
+    if not ok then print('package copas not found!') end
+    if not ok2 then print('package lua-websockets not found!') end
+    if not ok3 then print('package luajson not found!') end
+    if ok and ok2 and ok3 then
+        print('visualization has been enabled on 127.0.0.1:' .. opt.visualize)
+    else
+        print('Could not start visualization. Please ensure you have properly installed copas, lua-websockets, and luajson')
+        opt.visualize = 0
     end
 end
 
@@ -200,15 +216,6 @@ end
 
 print('number of parameters in the model: ' .. params:nElement())
 
-if opt.visualize == true then
-    -- Delete previous data from files
-    io.open ('web_utils/data.txt', 'w')
-    file = io.open ('web_utils/train.txt', 'w')
-    file:write("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.")
-    file:close()
-
-    print('Visualization tools have been enabled. Visit the monitor.html page to see how your model training is progressing.')
-end
 -- make a bunch of clones after flattening, as that reallocates memory
 clones = {}
 for name,proto in pairs(protos) do
@@ -230,11 +237,6 @@ function prepro(x,y)
         y = y:cl()
     end
     return x,y
-end
-
-function round(num, idp)
-  local mult = 10^(idp or 0)
-  return math.floor(num * mult + 0.5) / mult
 end
 
 -- evaluate the loss over an entire split
@@ -326,8 +328,66 @@ local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
 local iterations = opt.max_epochs * loader.ntrain
 local iterations_per_epoch = loader.ntrain
 local loss0 = nil
+
+if opt.visualize > 0 then
+    ws_iteration = 0
+    ws_batch_time = 0
+    epoch = 0
+    websocket.server.copas.listen
+    {
+        port = opt.visualize,
+        protocols = {
+            -- this callback is called, whenever a new client connects.
+            -- ws is a new websocket instance
+            monitor = function(ws)
+                json_data = {}
+                json_data["type"] = "initial"
+                json_data["iterations"] = iterations
+                json_data["iterations_per_epoch"] = iterations_per_epoch
+                json_data["print_every"] = opt.print_every
+                json_data["train_loss"] = {}
+                for i = 1, ws_iteration do
+                    if i - 1 % opt.print_every == 0 then
+                        table.insert(json_data["train_loss"], train_losses[i])
+                    end
+                end
+
+                ws:send(json.encode(json_data))
+                while true do
+                    local msg = ws:receive()
+                    if msg == nil then
+                        ws:close()
+                        break
+                    else
+                        local js = json.decode(msg)
+                        if js.type == "update" then
+                            json_data = {}
+                            json_data["type"] = "update"
+                            json_data["iteration"] = ws_iteration
+                            json_data["epoch"] = tonumber(string.format("%.3f", epoch))
+                            json_data["batch_time"] = ws_batch_time
+                            json_data["train_loss"] = {}
+                            for i = js.last_iteration + 1, ws_iteration do
+                                if i % opt.print_every == 0 then
+                                    table.insert(json_data["train_loss"], train_losses[i])
+                                end
+                            end
+
+                            ws:send(json.encode(json_data))
+                        else
+                           ws:close()
+                           return
+                        end
+                    end
+                end
+            end
+        }
+    }
+end
+
+
 for i = 1, iterations do
-    local epoch = i / loader.ntrain
+    epoch = i / loader.ntrain
 
     local timer = torch.Timer()
     local _, loss = optim.rmsprop(feval, params, optim_state)
@@ -340,7 +400,11 @@ for i = 1, iterations do
         cutorch.synchronize()
     end
     local time = timer:time().real
-    
+    if opt.visualize > 0 then
+        -- set visualization specific vars
+        ws_iteration = i
+        ws_batch_time = time
+    end
     local train_loss = loss[1] -- the loss is inside a list, pop it
     train_losses[i] = train_loss
 
@@ -375,31 +439,13 @@ for i = 1, iterations do
 
     if i % opt.print_every == 0 then
         print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.4fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
-
-        if opt.visualize == true then
-
-            -- Truncate epoch value to 3 decimal places (rounding sometimes produces 2, which breaks the progress circle)
-            truncate_epoch = tonumber(string.format("%.3f", epoch))
-             -- Round values to 3 decimal places
-            rounded_train_loss = round(train_loss, 3)
-            rounded_time = round(time, 3)
-            -- Write current data to files
-            data = io.open ('web_utils/data.txt', 'w')
-            train = io.open ('web_utils/train.txt', 'a')
-
-            data:write ("# This file holds all the collected data for the monitoring page. You shouldn't need to edit this.", "\n")
-            data:write(truncate_epoch, "\n")
-            data:write(i, "\n")
-            data:write(iterations, "\n")
-            data:write(rounded_time)
-            data:close()
-
-            train:write("\n", truncate_epoch .. ':' .. rounded_train_loss)
-            train:close()
-        end
     end
-   
+
     if i % 10 == 0 then collectgarbage() end
+
+    if opt.visualize > 0 then
+        copas.step(1)
+    end
 
     -- handle early stopping if things are going really bad
     if loss[1] ~= loss[1] then

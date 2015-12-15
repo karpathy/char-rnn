@@ -39,6 +39,13 @@ $ luarocks install cltorch
 $ luarocks install clnn
 ```
 
+If you'd like to run web visualization you will need to install the `lua-websockets` and `luajson` packages, then you may use the option `-visualize [port]` during training. Recommended to use port 8080.
+
+```bash
+$ luarocks install lua-websockets
+$ luarocks install luajson
+```
+
 ## Usage
 
 ### Data
