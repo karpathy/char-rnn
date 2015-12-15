@@ -1,1 +1,3 @@
 *.t7
+web_utils/data.txt
+web_utils/train.txt
