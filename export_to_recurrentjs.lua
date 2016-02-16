@@ -9,7 +9,7 @@ so that it can be run by a browser.
 ]] --
 
 -- simple script that loads a checkpoint and prints its opts
---require('mobdebug').start()  -- Uncomment this line if you want to debug in terminal or in zbs-studio
+require('mobdebug').start()  -- Uncomment this line if you want to debug in terminal or in zbs-studio
 require 'torch'
 require 'nn'
 require 'nngraph'
@@ -33,6 +33,19 @@ function createWeightsTable(cudaTensor)
       end
     end  
     return thistable
+end
+
+function createBiasTable(cudaTensor)
+    local thistable = {}
+    doubleTensor = cudaTensor:double()
+    thistable.n = doubleTensor:size(1)
+    thistable.d = 1
+    thistable.w = {}
+    for i = 1, doubleTensor:size(1) do
+          thistable.w[i-1] = doubleTensor[i]
+    end  
+    return thistable
+  
 end
 
 function escapeVocab(vocab) 
@@ -112,17 +125,9 @@ AllModelWeights = {}
 --    - output gate, 
 --    - new memory cell
 
---[[ Some printing (leaving it here to help development)
-local labeling = {}
-for i,modulino in ipairs(rnn:findModules("nn.Linear")) do
-        print(modulino.bias)
-        table.insert(labeling, modulino.weight) 
-end
+Biases = {}
 
-print(labeling)
-
-]]--
-
+-------------- The following region handles weight matrices
 local LinearModules = rnn:findModules("nn.Linear")
 
 for i,linearmodule in ipairs(LinearModules) do
@@ -131,26 +136,70 @@ for i,linearmodule in ipairs(LinearModules) do
         end -- if n == 1 we add this, but also add x0
           if (i == #LinearModules) then
             AllModelWeights["Whd"] = createWeightsTable(linearmodule.weight)
+            Biases["bd"] = linearmodule.bias
   
           else
             local W = torch.reshape(linearmodule.weight, 4, linearmodule.weight:size(1) / 4, linearmodule.weight:size(2)) -- These are all packed and need unpacking into i, f, o, g. The last gate, g, is called c in the new format.
+            print(linearmodule.bias)
+            print(linearmodule.bias:size())
+            local B = torch.reshape(linearmodule.bias, 4, linearmodule.bias:size(1) / 4)
             if(i % 2 == 1) then 
-              AllModelWeights["Wix" .. (i-1)/2] = createWeightsTable(W[1]) 
+              AllModelWeights["Wix" .. (i-1)/2] = createWeightsTable(W[1])
+              Biases["bix".. (i-1)/2] = B[1]
+              
               AllModelWeights["Wfx" .. (i-1)/2] = createWeightsTable(W[2])
+              Biases["bfx".. (i-1)/2] = B[2]
+
               AllModelWeights["Wox" .. (i-1)/2] = createWeightsTable(W[3])
+              Biases["box".. (i-1)/2] = B[3]
+
               AllModelWeights["Wcx" .. (i-1)/2] = createWeightsTable(W[4])
+              Biases["bcx".. (i-1)/2] = B[4]
               
               print("Wx" .. (i-1)/2)
             else 
               AllModelWeights["Wih" .. math.floor((i-1)/2)] = createWeightsTable(W[1])
+              Biases["bih" .. math.floor((i-1)/2)] = B[1]
+
               AllModelWeights["Wfh" .. math.floor((i-1)/2)] = createWeightsTable(W[2])
+              Biases["bfh" .. math.floor((i-1)/2)] = B[2]
+
               AllModelWeights["Woh" .. math.floor((i-1)/2)] = createWeightsTable(W[3])
+              Biases["boh" .. math.floor((i-1)/2)] = B[3]
+
               AllModelWeights["Wch" .. math.floor((i-1)/2)] = createWeightsTable(W[4])
+              Biases["bch" .. math.floor((i-1)/2)] = B[4]              
+              
               print("Wh" .. math.floor((i-1)/2))
             end
           end
       
 end
+
+-----------------------------------------------------------------
+--The following region handles biases (for each gate, we have to sum up the contribution coming from x with that coming from h)
+--Some printing (leaving it here to help development)
+for i=0,model.opt.num_layers do -- Recall that RecurrentJS is 0-indexed
+  AllModelWeights["bi" .. i] = createBiasTable( Biases["bix" .. i] + Biases["bih" .. i] ) 
+  AllModelWeights["bf" .. i] = createBiasTable( Biases["bfx" .. i] + Biases["bfh" .. i] )
+  AllModelWeights["bo" .. i] = createBiasTable( Biases["box" .. i] + Biases["boh" .. i] )
+  AllModelWeights["bg" .. i] = createBiasTable( Biases["bcx" .. i] + Biases["bch" .. i] )
+end
+
+
+local labeling = {}
+for i,modulino in ipairs(rnn:findModules("nn.Linear")) do
+  
+        print(modulino.bias)
+        table.insert(labeling, modulino.weight) 
+end
+
+print(labeling)
+
+
+
+-----------------------------------------------------------------------
+
 
 --print(AllModelWeights)
 
