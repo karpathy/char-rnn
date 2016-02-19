@@ -179,23 +179,13 @@ end
 -----------------------------------------------------------------
 --The following region handles biases (for each gate, we have to sum up the contribution coming from x with that coming from h)
 --Some printing (leaving it here to help development)
-for i=0,model.opt.num_layers do -- Recall that RecurrentJS is 0-indexed
+for i=0,model.opt.num_layers-1 do -- Recall that RecurrentJS is 0-indexed
   AllModelWeights["bi" .. i] = createBiasTable( Biases["bix" .. i] + Biases["bih" .. i] ) 
   AllModelWeights["bf" .. i] = createBiasTable( Biases["bfx" .. i] + Biases["bfh" .. i] )
   AllModelWeights["bo" .. i] = createBiasTable( Biases["box" .. i] + Biases["boh" .. i] )
-  AllModelWeights["bg" .. i] = createBiasTable( Biases["bcx" .. i] + Biases["bch" .. i] )
+  AllModelWeights["bc" .. i] = createBiasTable( Biases["bcx" .. i] + Biases["bch" .. i] )
+  AllModelWeights["bd"] = createBiasTable(Biases["bd"])
 end
-
-
-local labeling = {}
-for i,modulino in ipairs(rnn:findModules("nn.Linear")) do
-  
-        print(modulino.bias)
-        table.insert(labeling, modulino.weight) 
-end
-
-print(labeling)
-
 
 
 -----------------------------------------------------------------------
@@ -227,6 +217,9 @@ mymodel.indexToLetter   = invertTable(vocab)
 mymodel.vocab           = getKeys(vocab)
 mymodel.hidden_sizes    = hiddenSizes
 mymodel.letter_size     = tablelength(model.vocab) -- Size of the embeddings for RecurrentJS smaller than the vocab in input. For us it's not.
+mymodel.solver          = {}
+mymodel.solver["decay_rate"] = 0.999
+mymodel.solver["smooth_eps"] = 1E-8
 
 mymodelStr = json.encode(mymodel):gsub("\\\"", ""):gsub("\\'", "")
 fho:write(mymodelStr)
