@@ -9,7 +9,7 @@ so that it can be run by a browser.
 ]] --
 
 -- simple script that loads a checkpoint and prints its opts
-require('mobdebug').start()  -- Uncomment this line if you want to debug in terminal or in zbs-studio
+--require('mobdebug').start()  -- Uncomment this line if you want to debug in terminal or in zbs-studio
 require 'torch'
 require 'nn'
 require 'nngraph'
@@ -107,7 +107,9 @@ end
 
 json = require("json")
 
-local model = torch.load("examples/PaulGraham.t7") -- Given we are still doing development, this is currently fixed
+path = "cv/microNet"
+
+local model = torch.load(path .. ".t7") -- Given we are still doing development, this is currently fixed
 
 rnn = model.protos.rnn
 
@@ -200,7 +202,7 @@ for i = 1, model.opt.num_layers do
   table.insert(hiddenSizes, model.opt.rnn_size)
 end
 
-fho,err = io.open("examples/PaulGrahamModel.json","w")
+fho,err = io.open(path .. ".json","w")
 
 modelstr = json.encode(AllModelWeights)
 modelstr = modelstr:gsub("\\[", ""):gsub("\\]", "")

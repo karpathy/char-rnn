@@ -17,6 +17,8 @@ require 'lfs'
 require 'util.OneHot'
 require 'util.misc'
 
+require('mobdebug').start()  -- Uncomment this line if you want to debug in terminal or in zbs-studio
+
 cmd = torch.CmdLine()
 cmd:text()
 cmd:text('Sample from a character-level language model')
@@ -34,6 +36,36 @@ cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
 cmd:option('-opencl',0,'use OpenCL (instead of CUDA)')
 cmd:option('-verbose',1,'set to 0 to ONLY print the sampled text, no diagnostics')
 cmd:text()
+
+function createWeightsTable(cudaTensor)
+    local thistable = {}
+    doubleTensor = cudaTensor:double()
+    thistable.n = doubleTensor:size(1)
+    thistable.d = doubleTensor:size(2)
+    thistable.w = {}
+    for i = 1, doubleTensor:size(1) do
+        for j = 1,doubleTensor:size(2) do
+            indexInt = ((i-1) * doubleTensor:size(2)) + j - 1
+            indexStr = tostring(indexInt)
+            thistable.w[indexStr] = doubleTensor[i][j]
+      end
+    end  
+    return thistable
+end
+
+function createBiasTable(cudaTensor)
+    local thistable = {}
+    doubleTensor = cudaTensor:double()
+    thistable.n = doubleTensor:size(1)
+    thistable.d = 1
+    thistable.w = {}
+    for i = 1, doubleTensor:size(1) do
+          thistable.w[i-1] = doubleTensor[i]
+    end  
+    return thistable
+  
+end
+
 
 -- parse input params
 opt = cmd:parse(arg)
@@ -114,16 +146,26 @@ if string.len(seed_text) > 0 then
     gprint('seeding with ' .. seed_text)
     gprint('--------------------------')
     for c in seed_text:gmatch'.' do
+        print("Using character = " .. c)
         prev_char = torch.Tensor{vocab[c]}
-        io.write(ivocab[prev_char[1]])
+        --io.write(ivocab[prev_char[1]])
         if opt.gpuid >= 0 and opt.opencl == 0 then prev_char = prev_char:cuda() end
         if opt.gpuid >= 0 and opt.opencl == 1 then prev_char = prev_char:cl() end
         local lst = protos.rnn:forward{prev_char, unpack(current_state)}
-        -- lst is a list of [state1,state2,..stateN,output]. We want everything but last piece
+        print("LSTM state:")
         current_state = {}
         for i=1,state_size do table.insert(current_state, lst[i]) end
+        print("c:")
+        print(current_state[1])
+        print("h:")
+        print(current_state[2])
+        print("probs:")
+        print(lst[#lst])
         prediction = lst[#lst] -- last element holds the log probabilities
     end
+    
+    
+    
 else
     -- fill with uniform probabilities over characters (? hmm)
     gprint('missing seed text, using uniform probability over first character')
