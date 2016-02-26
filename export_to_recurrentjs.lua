@@ -48,14 +48,14 @@ function createBiasTable(cudaTensor)
   
 end
 
--- This also makes the vocab 0-indexed as RecurrentJS would have it.
+-- This function escapes each entry and creates a 0-indexed vocabulary
 function escapeVocab(vocab) 
   escapedvocab = {}
   local inspect = require 'inspect'
   for key, val in pairs(vocab) do
       escapedkey = fixUTF8(inspect(key), "Invalid")
       if (not string.find(escapedkey, "Invalid")) then
-        escapedvocab[escapedkey] = val -1
+        escapedvocab[escapedkey] = val - 1 -- making it 0-indexed
       end
   end
   return escapedvocab
@@ -114,84 +114,18 @@ local model = torch.load(path .. ".t7") -- Given we are still doing development,
 
 rnn = model.protos.rnn
 
-AllModelWeights = {}
 
--- The way weights are stored is simple:
--- Each layer has 2 nn.Linear() layers with the weights from input to hidden
--- and hidden to hidden, respectively. Each of these 2 matrices has size
--- [layer_input, 4 * rnn_size]. Layer_input is of size [Voc] for the first layer,
--- and of size rnn_size for all other layers.
--- The quadruple size comes from the fact that 4 matrices are concatenated there.
--- In order, these are the weights for: 
---    - input gate, 
---    - forget gate, 
---    - output gate, 
---    - new memory cell
 
-Biases = {}
 
--------------- The following region handles weight matrices
-local LinearModules = rnn:findModules("nn.Linear")
 
-for i,linearmodule in ipairs(LinearModules) do
-        if (i == 1) then
-          AllModelWeights["Wil"] = createWeightsTable(torch.eye(linearmodule.weight:size(2)))
-        end -- if n == 1 we add this, but also add x0
-          if (i == #LinearModules) then
-            AllModelWeights["Whd"] = createWeightsTable(linearmodule.weight)
-            Biases["bd"] = linearmodule.bias
-  
-          else
-            local W = torch.reshape(linearmodule.weight, 4, linearmodule.weight:size(1) / 4, linearmodule.weight:size(2)) -- These are all packed and need unpacking into i, f, o, g. The last gate, g, is called c in the new format.
-            local B = torch.reshape(linearmodule.bias, 4, linearmodule.bias:size(1) / 4)
-            if(i % 2 == 1) then 
-              AllModelWeights["Wix" .. (i-1)/2] = createWeightsTable(W[1])
-              Biases["bix".. (i-1)/2] = B[1]
-              
-              AllModelWeights["Wfx" .. (i-1)/2] = createWeightsTable(W[2])
-              Biases["bfx".. (i-1)/2] = B[2]
-
-              AllModelWeights["Wox" .. (i-1)/2] = createWeightsTable(W[3])
-              Biases["box".. (i-1)/2] = B[3]
-
-              AllModelWeights["Wcx" .. (i-1)/2] = createWeightsTable(W[4])
-              Biases["bcx".. (i-1)/2] = B[4]
-              
-              print("Processed Wx" .. (i-1)/2)
-            else 
-              AllModelWeights["Wih" .. math.floor((i-1)/2)] = createWeightsTable(W[1])
-              Biases["bih" .. math.floor((i-1)/2)] = B[1]
-
-              AllModelWeights["Wfh" .. math.floor((i-1)/2)] = createWeightsTable(W[2])
-              Biases["bfh" .. math.floor((i-1)/2)] = B[2]
-
-              AllModelWeights["Woh" .. math.floor((i-1)/2)] = createWeightsTable(W[3])
-              Biases["boh" .. math.floor((i-1)/2)] = B[3]
-
-              AllModelWeights["Wch" .. math.floor((i-1)/2)] = createWeightsTable(W[4])
-              Biases["bch" .. math.floor((i-1)/2)] = B[4]              
-              
-              print("Processed Wh" .. math.floor((i-1)/2))
-            end
-          end
-      
+-- json.encode would work well with a big table with all the weights.
+-- Unfortunately, LUAJit objects can't be bigger than 1 GB even in x64 systems
+-- so we need to be creative and stream vectors in output instead.
+-- This function helps do just that.
+function streamWriteWeightsTable(fileDescriptor, tableName, table)
+  fileDescriptor:write('"'.. tableName .. '":')
+  fileDescriptor:write(json.encode(table))
 end
-
-
------------------------------------------------------------------
---The following region handles biases (for each gate, we have to sum up the contribution coming from x with that coming from h)
---Some printing (leaving it here to help development)
-for i=0,model.opt.num_layers-1 do -- Recall that RecurrentJS is 0-indexed
-  AllModelWeights["bi" .. i] = createBiasTable( Biases["bix" .. i] + Biases["bih" .. i] ) 
-  AllModelWeights["bf" .. i] = createBiasTable( Biases["bfx" .. i] + Biases["bfh" .. i] )
-  AllModelWeights["bo" .. i] = createBiasTable( Biases["box" .. i] + Biases["boh" .. i] )
-  AllModelWeights["bc" .. i] = createBiasTable( Biases["bcx" .. i] + Biases["bch" .. i] )
-  AllModelWeights["bd"] = createBiasTable(Biases["bd"])
-end
-
-
------------------------------------------------------------------------
-print("Processed biases")
 
 --print(AllModelWeights)
 
@@ -212,26 +146,115 @@ vocab = escapeVocab(model.vocab)
 mymodel = {}
 
 mymodel.generator       = model.opt.model
-mymodel.model           = AllModelWeights
-mymodel.i               = model.i
+--mymodel.model           = AllModelWeights
 mymodel.letterToIndex   = vocab
 mymodel.indexToLetter   = invertTable(vocab)
 mymodel.vocab           = getKeys(vocab)
 mymodel.hidden_sizes    = hiddenSizes
 mymodel.letter_size     = tablelength(model.vocab) -- Size of the embeddings for RecurrentJS smaller than the vocab in input. For us it's not.
 mymodel.solver          = {}
-mymodel.solver["decay_rate"] = 0.999
+mymodel.solver["decay_rate"] = 0.999 -- RecurrentJS needs these, even though most people won't be training there anyway.
 mymodel.solver["smooth_eps"] = 1E-8
 
 mymodelStr = json.encode(mymodel):gsub("\\\"", ""):gsub("\\'", "")
+mymodelStr = mymodelStr:sub(1, #mymodelStr-1) -- Remove last closing bracket
+mymodelStr = mymodelStr .. ',"model":{'
 fho:write(mymodelStr)
+
+
+Biases = {} -- We can afford to store biases
+
+-- The way weights are stored is simple:
+-- Each layer has 2 nn.Linear() layers with the weights from input to hidden
+-- and hidden to hidden, respectively. Each of these 2 matrices has size
+-- [layer_input, 4 * rnn_size]. Layer_input is of size [Voc] for the first layer,
+-- and of size rnn_size for all other layers.
+-- The quadruple size comes from the fact that 4 matrices are concatenated there.
+-- In order, these are the weights for: 
+--    - input gate, 
+--    - forget gate, 
+--    - output gate, 
+--    - new memory cell
+
+-----------------------------------------------------------------------
+-------------- The following region handles weight matrices
+local LinearModules = rnn:findModules("nn.Linear")
+
+for i,linearmodule in ipairs(LinearModules) do
+        if (i == 1) then
+          streamWriteWeightsTable(fho, "Wil", createWeightsTable(torch.eye(linearmodule.weight:size(2))) )
+          fho:write(',')
+        end -- if n == 1 we add this, but also add x0
+          if (i == #LinearModules) then
+            streamWriteWeightsTable(fho, "Whd", createWeightsTable(linearmodule.weight) )
+            fho:write(',')
+            Biases["bd"] = linearmodule.bias
+  
+          else
+            local W = torch.reshape(linearmodule.weight, 4, linearmodule.weight:size(1) / 4, linearmodule.weight:size(2)) -- These are all packed and need unpacking into i, f, o, g. The last gate, g, is called c in the new format.
+            local B = torch.reshape(linearmodule.bias, 4, linearmodule.bias:size(1) / 4)
+            if(i % 2 == 1) then
+              streamWriteWeightsTable(fho, "Wix" .. (i-1)/2, createWeightsTable(W[1]) )
+              fho:write(',')
+              Biases["bix".. (i-1)/2] = B[1]
+              
+              streamWriteWeightsTable(fho, "Wfx" .. (i-1)/2, createWeightsTable(W[2]) )
+              fho:write(',')
+              Biases["bfx".. (i-1)/2] = B[2]
+  
+              streamWriteWeightsTable(fho, "Wox" .. (i-1)/2, createWeightsTable(W[3]) )
+              fho:write(',')
+              Biases["box".. (i-1)/2] = B[3]
+
+              streamWriteWeightsTable(fho, "Wcx" .. (i-1)/2, createWeightsTable(W[4]) )
+              fho:write(',')
+              Biases["bcx".. (i-1)/2] = B[4]
+              
+              print("Wx" .. (i-1)/2)
+            else 
+              streamWriteWeightsTable(fho, "Wih" .. math.floor((i-1)/2), createWeightsTable(W[1]) )
+              fho:write(',')
+              Biases["bih" .. math.floor((i-1)/2)] = B[1]
+
+              streamWriteWeightsTable(fho, "Wfh" .. math.floor((i-1)/2), createWeightsTable(W[2]) )
+              fho:write(',')
+              Biases["bfh" .. math.floor((i-1)/2)] = B[2]
+
+              streamWriteWeightsTable(fho, "Woh" .. math.floor((i-1)/2), createWeightsTable(W[3]) )
+              fho:write(',')
+              Biases["boh" .. math.floor((i-1)/2)] = B[3]
+
+              streamWriteWeightsTable(fho, "Wch" .. math.floor((i-1)/2), createWeightsTable(W[4]) )
+              fho:write(',')
+              Biases["bch" .. math.floor((i-1)/2)] = B[4]              
+              
+              print("Wh" .. math.floor((i-1)/2))
+            end
+          end
+      
+end
+
+-----------------------------------------------------------------
+--The following region handles biases (for each gate, we have to sum up the contribution coming from x with that coming from h)
+--Some printing (leaving it here to help development)
+for i=0,model.opt.num_layers-1 do -- Recall that RecurrentJS is 0-indexed
+  streamWriteWeightsTable(fho, "bi" .. i, createBiasTable( Biases["bix" .. i] + Biases["bih" .. i] ) )
+  fho:write(',')
+  streamWriteWeightsTable(fho, "bf" .. i, createBiasTable( Biases["bfx" .. i] + Biases["bfh" .. i] ) )
+  fho:write(',')
+  streamWriteWeightsTable(fho, "bo" .. i, createBiasTable( Biases["box" .. i] + Biases["boh" .. i] ) )
+  fho:write(',')
+  streamWriteWeightsTable(fho, "bc" .. i, createBiasTable( Biases["bcx" .. i] + Biases["bch" .. i] ) )
+  fho:write(',')
+  streamWriteWeightsTable(fho, "bd", createBiasTable(Biases["bd"]) )
+  -- No commas for the last one!
+end
+
+
+
+fho:write("}}")
 fho:flush()
 fho:close()
-
-print("Done!")
-
-
-
 
 
 
