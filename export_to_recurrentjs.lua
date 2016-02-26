@@ -48,13 +48,14 @@ function createBiasTable(cudaTensor)
   
 end
 
+-- This also makes the vocab 0-indexed as RecurrentJS would have it.
 function escapeVocab(vocab) 
   escapedvocab = {}
   local inspect = require 'inspect'
   for key, val in pairs(vocab) do
       escapedkey = fixUTF8(inspect(key), "Invalid")
       if (not string.find(escapedkey, "Invalid")) then
-        escapedvocab[escapedkey] = val
+        escapedvocab[escapedkey] = val -1
       end
   end
   return escapedvocab
@@ -107,7 +108,7 @@ end
 
 json = require("json")
 
-path = "cv/microNet"
+path = "examples/PaulGraham128"
 
 local model = torch.load(path .. ".t7") -- Given we are still doing development, this is currently fixed
 
@@ -142,8 +143,6 @@ for i,linearmodule in ipairs(LinearModules) do
   
           else
             local W = torch.reshape(linearmodule.weight, 4, linearmodule.weight:size(1) / 4, linearmodule.weight:size(2)) -- These are all packed and need unpacking into i, f, o, g. The last gate, g, is called c in the new format.
-            print(linearmodule.bias)
-            print(linearmodule.bias:size())
             local B = torch.reshape(linearmodule.bias, 4, linearmodule.bias:size(1) / 4)
             if(i % 2 == 1) then 
               AllModelWeights["Wix" .. (i-1)/2] = createWeightsTable(W[1])
@@ -158,7 +157,7 @@ for i,linearmodule in ipairs(LinearModules) do
               AllModelWeights["Wcx" .. (i-1)/2] = createWeightsTable(W[4])
               Biases["bcx".. (i-1)/2] = B[4]
               
-              print("Wx" .. (i-1)/2)
+              print("Processed Wx" .. (i-1)/2)
             else 
               AllModelWeights["Wih" .. math.floor((i-1)/2)] = createWeightsTable(W[1])
               Biases["bih" .. math.floor((i-1)/2)] = B[1]
@@ -172,11 +171,12 @@ for i,linearmodule in ipairs(LinearModules) do
               AllModelWeights["Wch" .. math.floor((i-1)/2)] = createWeightsTable(W[4])
               Biases["bch" .. math.floor((i-1)/2)] = B[4]              
               
-              print("Wh" .. math.floor((i-1)/2))
+              print("Processed Wh" .. math.floor((i-1)/2))
             end
           end
       
 end
+
 
 -----------------------------------------------------------------
 --The following region handles biases (for each gate, we have to sum up the contribution coming from x with that coming from h)
@@ -191,7 +191,7 @@ end
 
 
 -----------------------------------------------------------------------
-
+print("Processed biases")
 
 --print(AllModelWeights)
 
@@ -228,7 +228,7 @@ fho:write(mymodelStr)
 fho:flush()
 fho:close()
 
-
+print("Done!")
 
 
 
