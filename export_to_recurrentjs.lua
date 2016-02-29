@@ -246,9 +246,10 @@ for i=0,model.opt.num_layers-1 do -- Recall that RecurrentJS is 0-indexed
   fho:write(',')
   streamWriteWeightsTable(fho, "bc" .. i, createBiasTable( Biases["bcx" .. i] + Biases["bch" .. i] ) )
   fho:write(',')
+end
+
   streamWriteWeightsTable(fho, "bd", createBiasTable(Biases["bd"]) )
   -- No commas for the last one!
-end
 
 
 
