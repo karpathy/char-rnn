@@ -21,7 +21,7 @@ local ok2, cutorch = pcall(require, 'cutorch')
 
 function createWeightsTable(cudaTensor)
     local thistable = {}
-    doubleTensor = cudaTensor:double()
+    doubleTensor = cudaTensor:float()
     thistable.n = doubleTensor:size(1)
     thistable.d = doubleTensor:size(2)
     thistable.w = {}
@@ -29,7 +29,9 @@ function createWeightsTable(cudaTensor)
         for j = 1,doubleTensor:size(2) do
             indexInt = ((i-1) * doubleTensor:size(2)) + j - 1
             indexStr = tostring(indexInt)
-            thistable.w[indexStr] = doubleTensor[i][j]
+            -- Truncates Weight to 5 digits, simulating a FP16 conversion
+            truncatedWeight = tonumber(string.format("%." .. (5) .. "f", doubleTensor[i][j]))
+            thistable.w[indexStr] = truncatedWeight
       end
     end  
     return thistable
@@ -37,11 +39,12 @@ end
 
 function createBiasTable(cudaTensor)
     local thistable = {}
-    doubleTensor = cudaTensor:double()
+    doubleTensor = cudaTensor:float()
     thistable.n = doubleTensor:size(1)
     thistable.d = 1
     thistable.w = {}
     for i = 1, doubleTensor:size(1) do
+          truncatedWeight = tonumber(string.format("%." .. (5) .. "f", doubleTensor[i]))
           thistable.w[i-1] = doubleTensor[i]
     end  
     return thistable
@@ -108,29 +111,32 @@ end
 
 json = require("json")
 
-path = "examples/PaulGraham128"
 
-local model = torch.load(path .. ".t7") -- Given we are still doing development, this is currently fixed
+if (#arg < 1) then
+  io.write("No path given as argument. Type path here: ")
+  path = io.read()
+else 
+  path = arg[1]
+end
+
+local model = torch.load(path)
 
 rnn = model.protos.rnn
 
 
-
-
-
--- json.encode would work well with a big table with all the weights.
+-- json.encode would work well if we put all the weights in a table and then encoded it.
 -- Unfortunately, LUAJit objects can't be bigger than 1 GB even in x64 systems
--- so we need to be creative and stream vectors in output instead.
+-- so we need to be creative and stream vectors in output instead, generating the
+-- JSON on the fly.
 -- This function helps do just that.
 function streamWriteWeightsTable(fileDescriptor, tableName, table)
   fileDescriptor:write('"'.. tableName .. '":')
   fileDescriptor:write(json.encode(table))
 end
 
---print(AllModelWeights)
 
--- ConvNetJS is more flexible than this Torch code because it allows different layers to be of different size.
--- This does not support it, so we just iterate through each layer and copy the same layer size in the JSON.
+-- ConvNetJS is actually more flexible than char-rnn because 
+-- it allows different layers to be of different size.
 hiddenSizes = {}
 for i = 1, model.opt.num_layers do
   table.insert(hiddenSizes, model.opt.rnn_size)
@@ -210,7 +216,7 @@ for i,linearmodule in ipairs(LinearModules) do
               fho:write(',')
               Biases["bcx".. (i-1)/2] = B[4]
               
-              print("Wx" .. (i-1)/2)
+              print("Processed x" .. (i-1)/2)
             else 
               streamWriteWeightsTable(fho, "Wih" .. math.floor((i-1)/2), createWeightsTable(W[1]) )
               fho:write(',')
@@ -228,14 +234,15 @@ for i,linearmodule in ipairs(LinearModules) do
               fho:write(',')
               Biases["bch" .. math.floor((i-1)/2)] = B[4]              
               
-              print("Wh" .. math.floor((i-1)/2))
+              print("Processed h" .. math.floor((i-1)/2))
             end
           end
       
 end
 
 -----------------------------------------------------------------
---The following region handles biases (for each gate, we have to sum up the contribution coming from x with that coming from h)
+--The following region handles biases (for each gate, we have to sum up the contribution coming from x 
+-- with that coming from h due to the different format ConvNetJS uses)
 --Some printing (leaving it here to help development)
 for i=0,model.opt.num_layers-1 do -- Recall that RecurrentJS is 0-indexed
   streamWriteWeightsTable(fho, "bi" .. i, createBiasTable( Biases["bix" .. i] + Biases["bih" .. i] ) )
@@ -256,6 +263,8 @@ end
 fho:write("}}")
 fho:flush()
 fho:close()
+
+print("Done! Converted file is in " .. path .. ".json")
 
 
 
