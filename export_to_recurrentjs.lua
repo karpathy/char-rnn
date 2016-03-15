@@ -29,8 +29,9 @@ function createWeightsTable(cudaTensor)
         for j = 1,doubleTensor:size(2) do
             indexInt = ((i-1) * doubleTensor:size(2)) + j - 1
             indexStr = tostring(indexInt)
-            -- Truncates Weight to 5 digits, simulating a FP16 conversion
-            truncatedWeight = tonumber(string.format("%." .. (5) .. "f", doubleTensor[i][j]))
+            -- Truncates Weight to N digits.
+            -- Default is 5, that simulates a FP16 conversion
+            truncatedWeight = tonumber(string.format("%." .. (precision) .. "f", doubleTensor[i][j]))
             thistable.w[indexStr] = truncatedWeight
       end
     end  
@@ -44,7 +45,7 @@ function createBiasTable(cudaTensor)
     thistable.d = 1
     thistable.w = {}
     for i = 1, doubleTensor:size(1) do
-          truncatedWeight = tonumber(string.format("%." .. (5) .. "f", doubleTensor[i]))
+          truncatedWeight = tonumber(string.format("%." .. (precision) .. "f", doubleTensor[i]))
           thistable.w[i-1] = doubleTensor[i]
     end  
     return thistable
@@ -56,9 +57,19 @@ function escapeVocab(vocab)
   escapedvocab = {}
   local inspect = require 'inspect'
   for key, val in pairs(vocab) do
-      escapedkey = fixUTF8(inspect(key), "Invalid")
-      if (not string.find(escapedkey, "Invalid")) then
-        escapedvocab[escapedkey] = val - 1 -- making it 0-indexed
+      if (isAscii(key)) then
+          if (isControlChar(key)) then
+              escapedKey = key:gsub("\n", "\\n"):gsub("\r", "\\r")
+              escapedvocab[escapedKey] = val - 1 -- making it 0-indexed
+          elseif (key == "'") then -- Necessary hack, thanks LUA!
+            escapedvocab["SINGLEQUOTE"] = val - 1 -- making it 0-indexed
+          elseif (key == '"') then
+            escapedvocab["DOUBLEQUOTE"] = val - 1 -- making it 0-indexed
+          else
+              escapedvocab[key] = val - 1 -- making it 0-indexed
+          end
+      else 
+        print("Potential error: key " .. key .. " has not been found as ASCII and not added to the vocab")
       end
   end
   return escapedvocab
@@ -67,9 +78,9 @@ end
 function invertTable(vocab)
     t = {}
     for k, v in pairs(vocab) do
-      escapedk = string.sub(k, 2, #k-1)
+      --escapedk = string.sub(k, 2, #k-1)
       strval = tostring(v)
-      t[strval] = escapedk
+      t[strval] = k
     end
   return t
 end
@@ -82,24 +93,17 @@ function getKeys(vocab)
   return t
 end
 
-function fixUTF8(s, replacement)
-  local p, len, invalid = 1, #s, {}
-  while p <= len do
-    if     p == s:find("[%z\1-\127]", p) then p = p + 1
-    elseif p == s:find("[\194-\223][\128-\191]", p) then p = p + 2
-    elseif p == s:find(       "\224[\160-\191][\128-\191]", p)
-        or p == s:find("[\225-\236][\128-\191][\128-\191]", p)
-        or p == s:find(       "\237[\128-\159][\128-\191]", p)
-        or p == s:find("[\238-\239][\128-\191][\128-\191]", p) then p = p + 3
-    elseif p == s:find(       "\240[\144-\191][\128-\191][\128-\191]", p)
-        or p == s:find("[\241-\243][\128-\191][\128-\191][\128-\191]", p)
-        or p == s:find(       "\244[\128-\143][\128-\191][\128-\191]", p) then p = p + 4
-    else
-      s = s:sub(1, p-1)..replacement..s:sub(p+1)
-      table.insert(invalid, p)
-    end
-  end
-  return s, invalid
+function isAscii(s)
+  return s:find("[%z\1-\127]")
+end
+
+function isControlChar(s)
+    return s:find("[%z\1-\31]")
+end
+
+function escapeControlChar(c)
+  -- escape special characters with %, and quotes with \
+  return c:gsub("", "")
 end
 
 -- Yeah, turns out LUA needs this
@@ -117,6 +121,12 @@ if (#arg < 1) then
   path = io.read()
 else 
   path = arg[1]
+end
+
+precision = 5
+
+if(#arg > 1) then -- reading desired precision from input
+  precision = arg[2]
 end
 
 local model = torch.load(path)
@@ -183,6 +193,7 @@ Biases = {} -- We can afford to store biases
 --    - new memory cell
 
 -----------------------------------------------------------------------
+
 -------------- The following region handles weight matrices
 local LinearModules = rnn:findModules("nn.Linear")
 
@@ -258,8 +269,7 @@ end
   streamWriteWeightsTable(fho, "bd", createBiasTable(Biases["bd"]) )
   -- No commas for the last one!
 
-
-
+ 
 fho:write("}}")
 fho:flush()
 fho:close()

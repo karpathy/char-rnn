@@ -12,9 +12,6 @@ https://github.com/wojciechz/learning_to_execute
 which is turn based on other stuff in Torch, etc... (long lineage)
 
 ]]--
-
-require('mobdebug').start()  -- Uncomment this line if you want to debug in terminal or in zbs-studio
-
 require 'torch'
 require 'nn'
 require 'nngraph'
@@ -37,7 +34,6 @@ cmd:text('Options')
 -- data
 cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain the file input.txt with input data')
 -- model params
-cmd:option('-embedding_size', 0, 'size of vocabulary embeddings in input to the LSTM')
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
 cmd:option('-model', 'lstm', 'lstm,gru or rnn')
@@ -148,11 +144,7 @@ else
     print('creating an ' .. opt.model .. ' with ' .. opt.num_layers .. ' layers')
     protos = {}
     if opt.model == 'lstm' then
-        if opt.embedding_size == 0 then
-          protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
-        else
-          protos.rnn = LSTM.lstmWithEmbeddings(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout, opt.embedding_size)
-        end
+        protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
     elseif opt.model == 'gru' then
         protos.rnn = GRU.gru(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
     elseif opt.model == 'rnn' then
@@ -160,6 +152,7 @@ else
     end
     protos.criterion = nn.ClassNLLCriterion()
 end
+
 
 -- the initial state of the cell/hidden states
 init_state = {}
