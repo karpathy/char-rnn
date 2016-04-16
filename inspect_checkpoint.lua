@@ -4,6 +4,7 @@ require 'torch'
 require 'nn'
 require 'nngraph'
 
+require 'util.LinearNB'
 require 'util.OneHot'
 require 'util.misc'
 
