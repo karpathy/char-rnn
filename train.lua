@@ -19,7 +19,6 @@ require 'nngraph'
 require 'optim'
 require 'lfs'
 
-require 'util.LinearNB'
 require 'util.OneHot'
 require 'util.misc'
 local CharSplitLMMinibatchLoader = require 'util.CharSplitLMMinibatchLoader'
