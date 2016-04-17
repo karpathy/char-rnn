@@ -28,19 +28,21 @@ function LSTM.lstm(input_size, rnn_size, n, dropout, bn)
     end
     -- recurrent batch normalization
     -- http://arxiv.org/abs/1603.09025
-    local wx_bn, wh_bn, c_bn
+    local bn_wx, bn_wh, bn_c
     if bn then
-        wx_bn = nn.BatchNormalization(4 * rnn_size)
-        wh_bn = nn.BatchNormalization(4 * rnn_size)
-        c_bn = nn.BatchNormalization(rnn_size)
+        bn_wx = nn.BatchNormalization(4 * rnn_size, 1e-5, 0.1, true)
+        bn_wh = nn.BatchNormalization(4 * rnn_size, 1e-5, 0.1, true)
+        bn_c = nn.BatchNormalization(rnn_size, 1e-5, 0.1, true)
     else
-        wx_bn = nn.Identity()
-        wh_bn = nn.Identity()
-        c_bn = nn.Identity()
+        bn_wx = nn.Identity()
+        bn_wh = nn.Identity()
+        bn_c = nn.Identity()
     end
     -- evaluate the input sums at once for efficiency
-    local i2h = wx_bn(nn.Linear(input_size_L, 4 * rnn_size)(x):annotate{name='i2h_'..L})
-    local h2h = wh_bn(nn.LinearNB(rnn_size, 4 * rnn_size)(prev_h):annotate{name='h2h_'..L})
+    local i2h = bn_wx(nn.Linear(input_size_L, 4 * rnn_size)(x):annotate{name='i2h_'..L}
+                      ):annotate{name='bn_wx_'..L}
+    local h2h = bn_wh(nn.LinearNB(rnn_size, 4 * rnn_size)(prev_h):annotate{name='h2h_'..L}
+                      ):annotate{name='bn_wh_'..L}
     local all_input_sums = nn.CAddTable()({i2h, h2h})
 
     local reshaped = nn.Reshape(4, rnn_size)(all_input_sums)
@@ -57,7 +59,7 @@ function LSTM.lstm(input_size, rnn_size, n, dropout, bn)
         nn.CMulTable()({in_gate,     in_transform})
       })
     -- gated cells form the output
-    local next_h = nn.CMulTable()({out_gate, nn.Tanh()(c_bn(next_c))})
+    local next_h = nn.CMulTable()({out_gate, nn.Tanh()(bn_c(next_c):annotate{name='bn_c_'..L})})
     
     table.insert(outputs, next_c)
     table.insert(outputs, next_h)

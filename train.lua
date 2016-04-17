@@ -189,9 +189,23 @@ if opt.model == 'lstm' or opt.model == 'bnlstm' then
     for layer_idx = 1, opt.num_layers do
         for _,node in ipairs(protos.rnn.forwardnodes) do
             if node.data.annotations.name == "i2h_" .. layer_idx then
-                print('setting forget gate biases to 1 in LSTM layer ' .. layer_idx)
+                print('setting forget gate biases to 1 in ' .. opt.model:upper() .. ' layer ' .. layer_idx)
                 -- the gates are, in order, i,f,o,g, so f is the 2nd block of weights
                 node.data.module.bias[{{opt.rnn_size+1, 2*opt.rnn_size}}]:fill(1.0)
+            end
+        end
+    end
+end
+-- initialize the BNLSTM gamma and beta parameters with 0.1 and 0 respectively
+if opt.model == 'bnlstm' then
+    for layer_idx = 1, opt.num_layers do
+        for _,node in ipairs(protos.rnn.forwardnodes) do
+            if node.data.annotations.name == "bn_wx_" .. layer_idx or
+               node.data.annotations.name == "bn_wh_" .. layer_idx or
+               node.data.annotations.name == "bn_c_" .. layer_idx then
+                print('setting gamma to 0.1 and beta to 0 in ' .. node.data.annotations.name .. ' BNLSTM layer ' .. layer_idx)
+                node.data.module.weight:fill(0.1)
+                node.data.module.bias:zero()
             end
         end
     end
