@@ -14,12 +14,13 @@ function CharSplitLMMinibatchLoader.create(data_dir, batch_size, seq_length, spl
     local input_file = path.join(data_dir, 'input.txt')
     local vocab_file = path.join(data_dir, 'vocab.t7')
     local tensor_file = path.join(data_dir, 'data.t7')
+    local char_log_prob_file = path.join(data_dir, 'char_log_prob.t7')
 
     -- fetch file attributes to determine if we need to rerun preprocessing
     local run_prepro = false
-    if not (path.exists(vocab_file) or path.exists(tensor_file)) then
+    if not (path.exists(vocab_file) or path.exists(tensor_file) or path.exists(char_log_prob_file)) then
         -- prepro files do not exist, generate them
-        print('vocab.t7 and data.t7 do not exist. Running preprocessing...')
+        print('vocab.t7, data.t7, and/or char_log_prob.t7 do not exist. Running preprocessing...')
         run_prepro = true
     else
         -- check if the input file was modified since last time we 
@@ -27,20 +28,22 @@ function CharSplitLMMinibatchLoader.create(data_dir, batch_size, seq_length, spl
         local input_attr = lfs.attributes(input_file)
         local vocab_attr = lfs.attributes(vocab_file)
         local tensor_attr = lfs.attributes(tensor_file)
-        if input_attr.modification > vocab_attr.modification or input_attr.modification > tensor_attr.modification then
-            print('vocab.t7 or data.t7 detected as stale. Re-running preprocessing...')
+        local char_log_prob_attr = lfs.attributes(char_log_prob_file)
+        if input_attr.modification > vocab_attr.modification or input_attr.modification > tensor_attr.modification or input_attr.modification > char_log_prob_attr.modification then
+            print('vocab.t7, data.t7, or char_log_prob.t7 detected as stale. Re-running preprocessing...')
             run_prepro = true
         end
     end
     if run_prepro then
         -- construct a tensor with all the data, and vocab file
         print('one-time setup: preprocessing input text file ' .. input_file .. '...')
-        CharSplitLMMinibatchLoader.text_to_tensor(input_file, vocab_file, tensor_file)
+        CharSplitLMMinibatchLoader.text_to_tensor(input_file, vocab_file, tensor_file, char_log_prob_file)
     end
 
     print('loading data files...')
     local data = torch.load(tensor_file)
     self.vocab_mapping = torch.load(vocab_file)
+    self.char_log_prob = torch.load(char_log_prob_file)
 
     -- cut off the end so that it divides evenly
     local len = data:size(1)
@@ -123,7 +126,7 @@ function CharSplitLMMinibatchLoader:next_batch(split_index)
 end
 
 -- *** STATIC method ***
-function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, out_tensorfile)
+function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, out_tensorfile, out_char_log_probfile)
     local timer = torch.Timer()
 
     print('loading text file...')
@@ -139,12 +142,20 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     rawdata = f:read(cache_len)
     repeat
         for char in rawdata:gmatch'.' do
-            if not unordered[char] then unordered[char] = true end
+            if not unordered[char] then
+                unordered[char] = 1 
+            else
+                unordered[char] = unordered[char] + 1
+            end
         end
         tot_len = tot_len + #rawdata
         rawdata = f:read(cache_len)
     until not rawdata
     f:close()
+    -- construct character log probabilities
+    local log_tot_len = torch.log(tot_len)
+    for char, count in pairs(unordered) do unordered[char] = torch.log(count) - log_tot_len end
+
     -- sort into a table (i.e. keys become 1..N)
     local ordered = {}
     for char in pairs(unordered) do ordered[#ordered + 1] = char end
@@ -174,6 +185,8 @@ function CharSplitLMMinibatchLoader.text_to_tensor(in_textfile, out_vocabfile, o
     torch.save(out_vocabfile, vocab_mapping)
     print('saving ' .. out_tensorfile)
     torch.save(out_tensorfile, data)
+    print('saving ' .. out_char_log_probfile)
+    torch.save(out_char_log_probfile, unordered)
 end
 
 return CharSplitLMMinibatchLoader

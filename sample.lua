@@ -91,6 +91,7 @@ protos.rnn:evaluate() -- put in eval mode so that dropout works properly
 local vocab = checkpoint.vocab
 local ivocab = {}
 for c,i in pairs(vocab) do ivocab[i] = c end
+local char_log_prob = checkpoint.char_log_prob
 
 -- initialize the rnn state to all zeros
 gprint('creating an ' .. checkpoint.opt.model .. '...')
@@ -108,6 +109,9 @@ for L = 1,checkpoint.opt.num_layers do
 end
 state_size = #current_state
 
+-- keep the probability of the sampled text
+local sample_log_prob = nil
+
 -- do a few seeded timesteps
 local seed_text = opt.primetext
 if string.len(seed_text) > 0 then
@@ -115,6 +119,14 @@ if string.len(seed_text) > 0 then
     gprint('--------------------------')
     for c in seed_text:gmatch'.' do
         prev_char = torch.Tensor{vocab[c]}
+        -- initialize the sample probability to the empirical log probability of the first character
+        if not sample_log_prob then
+            sample_log_prob = char_log_prob[c]
+        else
+            -- use the previous prediction to find the probability of this character
+            sample_log_prob = sample_log_prob + prediction[1][vocab[c]]
+        end
+
         io.write(ivocab[prev_char[1]])
         if opt.gpuid >= 0 and opt.opencl == 0 then prev_char = prev_char:cuda() end
         if opt.gpuid >= 0 and opt.opencl == 1 then prev_char = prev_char:cl() end
@@ -128,7 +140,7 @@ else
     -- fill with uniform probabilities over characters (? hmm)
     gprint('missing seed text, using uniform probability over first character')
     gprint('--------------------------')
-    prediction = torch.Tensor(1, #ivocab):fill(1)/(#ivocab)
+    prediction = torch.log(torch.Tensor(1, #ivocab):fill(1)/(#ivocab))
     if opt.gpuid >= 0 and opt.opencl == 0 then prediction = prediction:cuda() end
     if opt.gpuid >= 0 and opt.opencl == 1 then prediction = prediction:cl() end
 end
@@ -141,12 +153,21 @@ for i=1, opt.length do
         -- use argmax
         local _, prev_char_ = prediction:max(2)
         prev_char = prev_char_:resize(1)
+        prev_char_log_prob = prediction[1][prev_char[1]]
     else
         -- use sampling
         prediction:div(opt.temperature) -- scale by temperature
         local probs = torch.exp(prediction):squeeze()
         probs:div(torch.sum(probs)) -- renormalize so probs sum to one
         prev_char = torch.multinomial(probs:float(), 1):resize(1):float()
+        prev_char_log_prob = torch.log(probs[prev_char[1]]) -- use log of probs to account for temperature effect
+    end
+
+    -- initialize the sample_log_prob (in case there was no seed text) to the emprical log prob of the selected char
+    if not sample_log_prob then
+        sample_log_prob = char_log_prob[ivocab[prev_char[1]]]
+    else
+        sample_log_prob = sample_log_prob + prev_char_log_prob
     end
 
     -- forward the rnn for next character
@@ -159,3 +180,4 @@ for i=1, opt.length do
 end
 io.write('\n') io.flush()
 
+gprint('\nSample log probability: ' .. sample_log_prob)

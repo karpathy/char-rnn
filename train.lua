@@ -351,6 +351,7 @@ for i = 1, iterations do
         checkpoint.i = i
         checkpoint.epoch = epoch
         checkpoint.vocab = loader.vocab_mapping
+        checkpoint.char_log_prob = loader.char_log_prob
         torch.save(savefile, checkpoint)
     end
 
