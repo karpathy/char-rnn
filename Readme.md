@@ -43,6 +43,13 @@ $ luarocks install cltorch
 $ luarocks install clnn
 ```
 
+If you'd like to run web visualization you will need to install the `lua-websockets` and `luajson` packages, then you may use the option `-visualize [port]` during training. Recommended to use port 8080.
+
+```bash
+$ luarocks install lua-websockets
+$ luarocks install luajson
+```
+
 ## Usage
 
 ### Data
@@ -68,6 +75,9 @@ $ th train.lua -data_dir data/some_folder -rnn_size 512 -num_layers 2 -dropout 0
 ```
 
 **Checkpoints.** While the model is training it will periodically write checkpoint files to the `cv` folder. The frequency with which these checkpoints are written is controlled with number of iterations, as specified with the `eval_val_every` option (e.g. if this is 1 then a checkpoint is written every iteration). The filename of these checkpoints contains a very important number: the **loss**. For example, a checkpoint with filename `lm_lstm_epoch0.95_2.0681.t7` indicates that at this point the model was on epoch 0.95 (i.e. it has almost done one full pass over the training data), and the loss on validation data was 2.0681. This number is very important because the lower it is, the better the checkpoint works. Once you start to generate data (discussed below), you will want to use the model checkpoint that reports the lowest validation loss. Notice that this might not necessarily be the last checkpoint at the end of training (due to possible overfitting).
+
+If you would like to visualize the training, add the `-visualize` flag. This will enable the reporting of various statistics to a webpage, that you can then access in your browser via your choice of any simple HTTP server. The recommended one is the Python `SimpleHTTPServer`, which you can start up by installing Python and running the command `python -m SimpleHTTPServer <port>`.
+
 
 Another important quantities to be aware of are `batch_size` (call it B), `seq_length` (call it S), and the `train_frac` and `val_frac` settings. The batch size specifies how many streams of data are processed in parallel at one time. The sequence length specifies the length of each stream, which is also the limit at which the gradients can propagate backwards in time. For example, if `seq_length` is 20, then the gradient signal will never backpropagate more than 20 time steps, and the model might not *find* dependencies longer than this length in number of characters. Thus, if you have a very difficult dataset where there are a lot of long-term dependencies you will want to increase this setting. Now, if at runtime your input text file has N characters, these first all get split into chunks of size `BxS`. These chunks then get allocated across three splits: train/val/test according to the `frac` settings. By default `train_frac` is 0.95 and `val_frac` is 0.05, which means that 95% of our data chunks will be trained on and 5% of the chunks will be used to estimate the validation loss (and hence the generalization). If your data is small, it's possible that with the default settings you'll only have very few chunks in total (for example 100). This is bad: In these cases you may want to decrease batch size or sequence length.
 

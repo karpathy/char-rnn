@@ -1,0 +1,175 @@
+<!doctype html>
+
+<html>
+<head>
+    <script src="jquery-1.11.3.min.js"></script>
+    <script src="bootstrap.min.js"></script>
+    <script src="canvasjs.min.js"></script>
+    <script src="circle-progress.js"></script>
+    <link rel="stylesheet" href="bootstrap.min.css">
+    <link rel="stylesheet" href="style.css">
+
+    <title>Char-RNN Monitoring Page</title>
+</head>
+
+<body>
+    <div class="center">
+        <div class="page-header">
+            <h1>Char-RNN Training <small>Monitoring Page</small></h1>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <h4>Training Loss:</h4>
+
+                <div class="training_loss">
+                    <h4>Processing....</h4>
+                </div><div id="chartContainer" style="margin-left: 40px; height: 400px; width: 400;"></div></canvas>
+
+                <h5>Epoch</h5>
+            </div>
+
+            <div class="col-md-4">
+                <h4>Progress of current epoch</h4>
+
+                <div id="circle"></div>
+
+                <h4>Current epoch:</h4>
+
+                <div class="current_epoch">
+                    <h4>0</h4>
+                </div>
+
+                <h4>Current iteration:</h4>
+
+                <div class="current_iter">
+                    <h4>0</h4>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <h3>Time per batch:</h3>
+
+                <div class="time_per_batch">
+                    <h3>0s </h3>
+                </div>
+            </div>
+        </div><br>
+
+        <h4>Completion</h4>
+
+        <div class="container">
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped active" id="bar"
+                style="width: 0%;">
+                    0%
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        var ws_ip   = '127.0.0.1';
+        var ws_port = '8080';
+        var ws = new WebSocket('ws://' + ws_ip + ':' + ws_port, 'monitor');
+
+        var iterations           = 0;
+        var iterations_per_epoch = 0.0;
+        var print_every          = 0;
+
+        var iteration  = 0;
+        var epoch      = 0.0;
+        var batch_time = 0;
+        var train_loss = [];
+
+        var graph_data = [];
+
+        function add_iterations_to_storage(it, loss)
+        {
+            for(var i=0; i<loss.length; ++i) {
+                train_loss.push(loss[i]);
+
+                graph_data.push({
+                    x: (train_loss.length * print_every) / iterations_per_epoch,
+                    y: loss[i]
+                });
+            }
+        }
+
+        ws.onopen = function(ev) {
+            console.log('Connection opened.');
+
+            function update()
+            {
+                ws.send(JSON.stringify({
+                    type: 'update',
+                    last_iteration: iteration
+                }));
+
+            }
+
+            window.setInterval(function() {
+                update();
+            }, 3000);
+        }
+
+        ws.onmessage = function(ev) {
+            console.log('Response from server: ' + ev.data);
+            var json = JSON.parse(ev.data);
+            switch(json.type) {
+            case "initial":
+                iterations           = json.iterations;
+                iterations_per_epoch = json.iterations_per_epoch;
+                print_every          = json.print_every;
+
+                add_iterations_to_storage(iteration, json.train_loss);
+
+                break;
+            case "update":
+                iteration = json.iteration;
+                add_iterations_to_storage(json.iteration, json.train_loss);
+                epoch      = json.epoch;
+                batch_time = json.batch_time;
+
+                chart = new CanvasJS.Chart("chartContainer", {
+                    data: [{
+                        type:       "line",
+                        dataPoints: graph_data
+                    }]
+                });
+
+                chart.render();
+
+                if(train_loss.length > 0) {
+                    $(".training_loss").text(train_loss[train_loss.length - 1].toFixed(5));
+                }
+                $('.current_epoch').text(epoch.toFixed(3));
+                $('.current_iter').text(iteration)
+                $('.time_per_batch').text(batch_time.toFixed(2) + "s");
+
+                var percent = (iteration / iterations) * 100.0;
+                $('#bar').text(percent.toFixed(5) + '%')
+                         .attr('aria-valuenow', percent)
+                         .css("width", percent + "%");
+
+                $('#circle').circleProgress('value', epoch % 1);
+            }
+        }
+
+        ws.onclose = function(ev) {
+            console.log('Connection closed.');
+        }
+
+        ws.onerror = function(ev) {
+            console.log('An error occurred. Sorry for that.');
+        }
+
+        $('#circle').circleProgress({
+            value: 0.00,
+            size: 280,
+            fill: {
+                gradient: ["#00688B", "#00B2EE"]
+            }
+        });
+    </script>
+</body>
+</html>
