@@ -180,7 +180,7 @@ end
 params, grad_params = model_utils.combine_all_parameters(protos.rnn)
 
 -- initialization
-if do_random_init then
+if do_random_init and opt.model ~= 'bnlstm' then
     params:uniform(-0.08, 0.08) -- small uniform numbers
 end
 -- initialize the LSTM forget gates with slightly higher biases to encourage remembering in the beginning

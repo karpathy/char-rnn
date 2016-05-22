@@ -33,6 +33,14 @@ function LSTM.lstm(input_size, rnn_size, n, dropout, bn)
         bn_wx = nn.BatchNormalization(4 * rnn_size, 1e-5, 0.1, true)
         bn_wh = nn.BatchNormalization(4 * rnn_size, 1e-5, 0.1, true)
         bn_c = nn.BatchNormalization(rnn_size, 1e-5, 0.1, true)
+        
+        -- initialise beta=0, gamma=0.1
+        bn_wx.weight:fill(0.1)
+        bn_wx.bias:zero()
+        bn_wh.weight:fill(0.1)
+        bn_wh.bias:zero()
+        bn_c.weight:fill(0.1)
+        bn_c.bias:zero()
     else
         bn_wx = nn.Identity()
         bn_wh = nn.Identity()
