@@ -37,7 +37,7 @@ cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain th
 -- model params
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
-cmd:option('-model', 'lstm', 'lstm,gru or rnn')
+cmd:option('-model', 'bnlstm', 'lstm,bnlstm,gru or rnn')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
@@ -57,7 +57,7 @@ cmd:option('-seed',123,'torch manual random number generator seed')
 cmd:option('-print_every',1,'how many steps/minibatches between printing out the loss')
 cmd:option('-eval_val_every',1000,'every how many iterations should we evaluate on validation data?')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
-cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
+cmd:option('-savefile','bnlstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
 cmd:option('-accurate_gpu_timing',0,'set this flag to 1 to get precise timings when using GPU. Might make code bit slower but reports accurate timings.')
 -- GPU/CPU
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
@@ -120,6 +120,7 @@ local do_random_init = true
 if string.len(opt.init_from) > 0 then
     print('loading a model from checkpoint ' .. opt.init_from)
     local checkpoint = torch.load(opt.init_from)
+    clones = checkpoint.clones
     protos = checkpoint.protos
     -- make sure the vocabs are the same
     local vocab_compatible = true
@@ -146,6 +147,8 @@ else
     protos = {}
     if opt.model == 'lstm' then
         protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+    elseif opt.model == 'bnlstm' then
+        protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout, true)
     elseif opt.model == 'gru' then
         protos.rnn = GRU.gru(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
     elseif opt.model == 'rnn' then
@@ -161,7 +164,7 @@ for L=1,opt.num_layers do
     if opt.gpuid >=0 and opt.opencl == 0 then h_init = h_init:cuda() end
     if opt.gpuid >=0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(init_state, h_init:clone())
-    if opt.model == 'lstm' then
+    if opt.model == 'lstm' or opt.model == 'bnlstm' then
         table.insert(init_state, h_init:clone())
     end
 end
@@ -178,17 +181,31 @@ end
 params, grad_params = model_utils.combine_all_parameters(protos.rnn)
 
 -- initialization
-if do_random_init then
+if do_random_init and opt.model ~= 'bnlstm' then
     params:uniform(-0.08, 0.08) -- small uniform numbers
 end
 -- initialize the LSTM forget gates with slightly higher biases to encourage remembering in the beginning
-if opt.model == 'lstm' then
+if opt.model == 'lstm' or opt.model == 'bnlstm' then
     for layer_idx = 1, opt.num_layers do
         for _,node in ipairs(protos.rnn.forwardnodes) do
             if node.data.annotations.name == "i2h_" .. layer_idx then
-                print('setting forget gate biases to 1 in LSTM layer ' .. layer_idx)
+                print('setting forget gate biases to 1 in ' .. opt.model:upper() .. ' layer ' .. layer_idx)
                 -- the gates are, in order, i,f,o,g, so f is the 2nd block of weights
                 node.data.module.bias[{{opt.rnn_size+1, 2*opt.rnn_size}}]:fill(1.0)
+            end
+        end
+    end
+end
+-- initialize the BNLSTM gamma and beta parameters with 0.1 and 0 respectively
+if opt.model == 'bnlstm' then
+    for layer_idx = 1, opt.num_layers do
+        for _,node in ipairs(protos.rnn.forwardnodes) do
+            if node.data.annotations.name == "bn_wx_" .. layer_idx or
+               node.data.annotations.name == "bn_wh_" .. layer_idx or
+               node.data.annotations.name == "bn_c_" .. layer_idx then
+                print('setting gamma to 0.1 and beta to 0 in ' .. node.data.annotations.name .. ' BNLSTM layer ' .. layer_idx)
+                node.data.module.weight:fill(0.1)
+                node.data.module.bias:zero()
             end
         end
     end
@@ -196,10 +213,12 @@ end
 
 print('number of parameters in the model: ' .. params:nElement())
 -- make a bunch of clones after flattening, as that reallocates memory
-clones = {}
-for name,proto in pairs(protos) do
-    print('cloning ' .. name)
-    clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
+if clones == nil then
+    clones = {}
+    for name,proto in pairs(protos) do
+        print('cloning ' .. name)
+        clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
+    end
 end
 
 -- preprocessing helper function
@@ -343,6 +362,7 @@ for i = 1, iterations do
         local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
+        checkpoint.clones = clones
         checkpoint.protos = protos
         checkpoint.opt = opt
         checkpoint.train_losses = train_losses
