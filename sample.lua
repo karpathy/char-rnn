@@ -84,8 +84,12 @@ if not lfs.attributes(opt.model, 'mode') then
     gprint('Error: File ' .. opt.model .. ' does not exist. Are you sure you didn\'t forget to prepend cv/ ?')
 end
 checkpoint = torch.load(opt.model)
+clones = checkpoint.clones
 protos = checkpoint.protos
 protos.rnn:evaluate() -- put in eval mode so that dropout works properly
+for t = 1, #clones.rnn do
+    clones.rnn[t]:evaluate()
+end
 
 -- initialize the vocabulary (and its inverted version)
 local vocab = checkpoint.vocab
@@ -102,7 +106,7 @@ for L = 1,checkpoint.opt.num_layers do
     if opt.gpuid >= 0 and opt.opencl == 0 then h_init = h_init:cuda() end
     if opt.gpuid >= 0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(current_state, h_init:clone())
-    if checkpoint.opt.model == 'lstm' then
+    if checkpoint.opt.model == 'lstm' or checkpoint.opt.model == 'bnlstm' then
         table.insert(current_state, h_init:clone())
     end
 end
@@ -113,16 +117,18 @@ local seed_text = opt.primetext
 if string.len(seed_text) > 0 then
     gprint('seeding with ' .. seed_text)
     gprint('--------------------------')
+    local t = 1
     for c in seed_text:gmatch'.' do
         prev_char = torch.Tensor{vocab[c]}
         io.write(ivocab[prev_char[1]])
         if opt.gpuid >= 0 and opt.opencl == 0 then prev_char = prev_char:cuda() end
         if opt.gpuid >= 0 and opt.opencl == 1 then prev_char = prev_char:cl() end
-        local lst = protos.rnn:forward{prev_char, unpack(current_state)}
+        local lst = clones.rnn[t]:forward{prev_char, unpack(current_state)}
         -- lst is a list of [state1,state2,..stateN,output]. We want everything but last piece
         current_state = {}
         for i=1,state_size do table.insert(current_state, lst[i]) end
         prediction = lst[#lst] -- last element holds the log probabilities
+        t = t + 1
     end
 else
     -- fill with uniform probabilities over characters (? hmm)
@@ -150,7 +156,7 @@ for i=1, opt.length do
     end
 
     -- forward the rnn for next character
-    local lst = protos.rnn:forward{prev_char, unpack(current_state)}
+    local lst = clones.rnn[(i - 1) % #clones.rnn + 1]:forward{prev_char, unpack(current_state)}
     current_state = {}
     for i=1,state_size do table.insert(current_state, lst[i]) end
     prediction = lst[#lst] -- last element holds the log probabilities

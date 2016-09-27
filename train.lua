@@ -120,6 +120,7 @@ local do_random_init = true
 if string.len(opt.init_from) > 0 then
     print('loading a model from checkpoint ' .. opt.init_from)
     local checkpoint = torch.load(opt.init_from)
+    clones = checkpoint.clones
     protos = checkpoint.protos
     -- make sure the vocabs are the same
     local vocab_compatible = true
@@ -212,10 +213,12 @@ end
 
 print('number of parameters in the model: ' .. params:nElement())
 -- make a bunch of clones after flattening, as that reallocates memory
-clones = {}
-for name,proto in pairs(protos) do
-    print('cloning ' .. name)
-    clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
+if clones == nil then
+    clones = {}
+    for name,proto in pairs(protos) do
+        print('cloning ' .. name)
+        clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
+    end
 end
 
 -- preprocessing helper function
@@ -359,6 +362,7 @@ for i = 1, iterations do
         local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
+        checkpoint.clones = clones
         checkpoint.protos = protos
         checkpoint.opt = opt
         checkpoint.train_losses = train_losses
