@@ -1,7 +1,7 @@
 
 --[[
 
-This file samples characters from a trained model
+This file samples characters from a ned model
 
 Code is based on implementation in 
 https://github.com/oxford-cs-ml-2015/practical6
@@ -93,16 +93,15 @@ local ivocab = {}
 for c,i in pairs(vocab) do ivocab[i] = c end
 
 -- initialize the rnn state to all zeros
-gprint('creating an ' .. checkpoint.opt.model .. '...')
 local current_state
 current_state = {}
-for L = 1,checkpoint.opt.num_layers do
+for L = 1,checkpoint.num_layers do
     -- c and h for all layers
-    local h_init = torch.zeros(1, checkpoint.opt.rnn_size):double()
+    local h_init = torch.zeros(1, checkpoint.rnn_size):double()
     if opt.gpuid >= 0 and opt.opencl == 0 then h_init = h_init:cuda() end
     if opt.gpuid >= 0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(current_state, h_init:clone())
-    if checkpoint.opt.model == 'lstm' then
+    if checkpoint.model_type == 'lstm' then
         table.insert(current_state, h_init:clone())
     end
 end

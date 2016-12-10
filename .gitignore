@@ -1,1 +1,4 @@
 *.t7
+data/
+.log
+*.log
