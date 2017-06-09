@@ -14,14 +14,13 @@ If you are new to Torch/Lua/Neural Nets, it might be helpful to know that this c
 This code is written in Lua and requires [Torch](http://torch.ch/). If you're on Ubuntu, installing Torch in your home directory may look something like: 
 
 ```bash
-$ curl -s https://raw.githubusercontent.com/torch/ezinstall/master/install-deps | bash
 $ git clone https://github.com/torch/distro.git ~/torch --recursive
-$ cd ~/torch; 
-$ ./install.sh      # and enter "yes" at the end to modify your bashrc
+$ cd ~/torch; bash install-deps;
+$ ./install.sh
 $ source ~/.bashrc
 ```
 
-See the Torch installation documentation for more details. After Torch is installed we need to get a few more packages using [LuaRocks](https://luarocks.org/) (which already came with the Torch install). In particular:
+See the [Torch installation documentation](http://torch.ch/docs/getting-started.html) for more details. After Torch is installed we need to get a few more packages using [LuaRocks](https://luarocks.org/) (which already came with the Torch install). In particular:
 
 ```bash
 $ luarocks install nngraph 
@@ -115,7 +114,7 @@ The two most important parameters that control the model are `rnn_size` and `num
 These two should be about the same order of magnitude. It's a little tricky to tell. Here are some examples:
 
 - I have a 100MB dataset and I'm using the default parameter settings (which currently print 150K parameters). My data size is significantly larger (100 mil >> 0.15 mil), so I expect to heavily underfit. I am thinking I can comfortably afford to make `rnn_size` larger.
-- I have a 10MB dataset and running a 10 million parameter model. I'm slightly nervous and I'm carefully monitoring my validation loss. If it's larger than my training loss then I may want to try to increase dropout a bit and see if that heps the validation loss.
+- I have a 10MB dataset and running a 10 million parameter model. I'm slightly nervous and I'm carefully monitoring my validation loss. If it's larger than my training loss then I may want to try to increase dropout a bit and see if that helps the validation loss.
 
 ### Best models strategy
 
